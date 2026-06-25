@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>西安乔戈里科技有限公司实时产品报价</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="toolbar" aria-label="报价工具栏">
+        <div>
+          <p class="eyebrow">西安乔戈里科技有限公司</p>
+          <h1>实时产品报价</h1>
+        </div>
+        <div class="status">
+          <span id="statusDot" class="dot"></span>
+          <span id="statusText">准备刷新</span>
+        </div>
+      </section>
+
+      <section class="controls" aria-label="筛选和刷新">
+        <label>
+          <span>搜索</span>
+          <input id="keywordInput" type="search" placeholder="型号、颜色、渠道、价格" autocomplete="off" />
+        </label>
+        <label>
+          <span>刷新间隔</span>
+          <select id="intervalSelect">
+            <option value="10">10 秒</option>
+            <option value="30" selected>30 秒</option>
+            <option value="60">1 分钟</option>
+            <option value="300">5 分钟</option>
+          </select>
+        </label>
+        <button id="refreshButton" type="button">立即刷新</button>
+        <button id="exportButton" type="button">导出 CSV</button>
+      </section>
+
+      <section class="summary" aria-label="报价摘要">
+        <div>
+          <span>商品数</span>
+          <strong id="totalCount">0</strong>
+        </div>
+        <div>
+          <span>最低价</span>
+          <strong id="minPrice">-</strong>
+        </div>
+        <div>
+          <span>最高价</span>
+          <strong id="maxPrice">-</strong>
+        </div>
+        <div>
+          <span>更新时间</span>
+          <strong id="updatedAt">-</strong>
+        </div>
+      </section>
+
+      <section class="table-wrap" aria-label="报价列表">
+        <table>
+          <thead>
+            <tr>
+              <th>分类</th>
+              <th>商品</th>
+              <th>报价</th>
+              <th>变化</th>
+            </tr>
+          </thead>
+          <tbody id="quoteBody">
+            <tr>
+              <td colspan="4" class="empty">正在读取报价...</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+    <script src="/app.js"></script>
+  </body>
+</html>
