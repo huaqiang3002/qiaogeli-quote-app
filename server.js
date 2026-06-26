@@ -49,7 +49,7 @@ function parseQuotes(html) {
   for (const tokenMatch of content.matchAll(tokenPattern)) {
     const token = tokenMatch[0];
     if (/^<h4\b/i.test(token)) {
-      currentGroup = cleanText(token);
+      currentGroup = cleanGroupName(cleanText(token));
       continue;
     }
 
@@ -63,6 +63,7 @@ function parseQuotes(html) {
     const name = cleanText(nameMatch && nameMatch[1]);
     const priceText = cleanText(priceMatch && priceMatch[1]);
     if (!name || !priceText) continue;
+    if (isExcludedQuote(currentGroup, name)) continue;
 
     const numericPrice = Number(priceText.replace(/[^\d.-]/g, ""));
     const displayPrice = Number.isFinite(numericPrice) ? numericPrice + PRICE_MARKUP : null;
@@ -77,6 +78,17 @@ function parseQuotes(html) {
   }
 
   return { sourceTitle, items, pageCount };
+}
+
+function cleanGroupName(value) {
+  return String(value || "")
+    .replace(/\s*\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\s*$/g, "")
+    .trim();
+}
+
+function isExcludedQuote(group, name) {
+  const text = `${group} ${name}`;
+  return /泡泡玛特|心底密码|坐坐派对|前方高能|单品系列|拉布布|LABUBU/i.test(text);
 }
 
 function cookieHeader(headers) {

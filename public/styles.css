@@ -267,23 +267,6 @@ td.price {
   font-variant-numeric: tabular-nums;
 }
 
-td.delta {
-  width: 110px;
-  font-weight: 700;
-}
-
-.up {
-  color: var(--accent);
-}
-
-.down {
-  color: var(--green);
-}
-
-.same {
-  color: var(--muted);
-}
-
 tr.changed {
   animation: flash 1.5s ease-out;
 }
@@ -421,8 +404,7 @@ tr.changed {
   }
 
   td.group,
-  td.price,
-  td.delta {
+  td.price {
     width: auto;
   }
 

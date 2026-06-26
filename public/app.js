@@ -121,15 +121,11 @@ function renderTable(items) {
     .map((item) => {
       const previous = state.previousPrices.get(item.id);
       const changed = typeof previous === "number" && previous !== item.price;
-      const delta = changed && typeof item.price === "number" ? item.price - previous : 0;
-      const deltaClass = delta > 0 ? "up" : delta < 0 ? "down" : "same";
-      const deltaText = delta > 0 ? `+${money(delta)}` : delta < 0 ? money(delta) : "持平";
 
       return `<tr class="${changed ? "changed" : ""}">
         <td class="group" data-label="分类">${escapeHtml(item.group)}</td>
         <td data-label="商品">${escapeHtml(item.name)}</td>
         <td class="price" data-label="报价">${escapeHtml(item.priceText)}</td>
-        <td class="delta ${deltaClass}" data-label="变化">${deltaText}</td>
       </tr>`;
     })
     .join("");
