@@ -382,6 +382,251 @@ function adminPage() {
 </html>`;
 }
 
+function browserFromUa(userAgent) {
+  const ua = String(userAgent || "");
+  if (/MicroMessenger/i.test(ua)) return "微信内置浏览器";
+  if (/Edg\//i.test(ua)) return "Edge";
+  if (/Chrome\//i.test(ua)) return "Chrome";
+  if (/Safari\//i.test(ua) && !/Chrome\//i.test(ua)) return "Safari";
+  return "未知浏览器";
+}
+
+function shortHash(value) {
+  return require("node:crypto").createHash("sha1").update(String(value || "")).digest("hex").slice(0, 10);
+}
+
+function visitorIdFrom(ip, ua) {
+  return shortHash(`${ip || ""}|${ua || ""}`);
+}
+
+function deviceFromUa(userAgent) {
+  const ua = String(userAgent || "");
+  if (/MicroMessenger/i.test(ua)) return "微信";
+  if (/iPhone|iPad|iPod/i.test(ua)) return "iPhone";
+  if (/Android/i.test(ua)) return "Android";
+  if (/Windows/i.test(ua)) return "Windows";
+  if (/Macintosh/i.test(ua)) return "Mac";
+  return "其他";
+}
+
+function logVisit(req, event = {}) {
+  ensureDataDir();
+  const ip = clientIp(req);
+  const ua = req.headers["user-agent"] || "";
+  const record = {
+    ts: new Date().toISOString(),
+    ip,
+    ua,
+    visitorId: visitorIdFrom(ip, ua),
+    device: deviceFromUa(ua),
+    browser: browserFromUa(ua),
+    referer: req.headers.referer || "",
+    type: String(event.type || "pageview").slice(0, 40),
+    path: String(event.path || "").slice(0, 200),
+    category: String(event.category || "").slice(0, 120),
+    keyword: String(event.keyword || "").slice(0, 120),
+    count: Number(event.count || 0) || 0,
+  };
+  fs.appendFile(visitsFile, `${JSON.stringify(record)}\n`, () => {});
+}
+
+function actionText(record) {
+  const labels = {
+    pageview: "打开页面",
+    data_view: "查看报价数据",
+    category: "查看分类",
+    search: "搜索产品",
+  };
+  return labels[record.type] || record.type || "访问";
+}
+
+function buildVisitors(records) {
+  const visitors = new Map();
+  for (const record of records) {
+    const id = record.visitorId || visitorIdFrom(record.ip, record.ua);
+    const item =
+      visitors.get(id) ||
+      {
+        id,
+        ip: record.ip || "",
+        device: record.device || deviceFromUa(record.ua),
+        browser: record.browser || browserFromUa(record.ua),
+        firstSeen: record.ts,
+        lastSeen: record.ts,
+        pageviews: 0,
+        dataViews: 0,
+        events: 0,
+        categories: new Set(),
+        keywords: new Set(),
+        referers: new Set(),
+      };
+    item.firstSeen = String(item.firstSeen) < String(record.ts) ? item.firstSeen : record.ts;
+    item.lastSeen = String(item.lastSeen) > String(record.ts) ? item.lastSeen : record.ts;
+    item.events += 1;
+    if (record.type === "pageview") item.pageviews += 1;
+    if (record.type === "data_view") item.dataViews += 1;
+    if (record.category) item.categories.add(record.category);
+    if (record.keyword) item.keywords.add(record.keyword);
+    if (record.referer) item.referers.add(record.referer);
+    visitors.set(id, item);
+  }
+
+  return [...visitors.values()]
+    .sort((a, b) => String(b.lastSeen).localeCompare(String(a.lastSeen)))
+    .slice(0, 200)
+    .map((item) => ({
+      ...item,
+      categories: [...item.categories].slice(-8),
+      keywords: [...item.keywords].slice(-8),
+      referers: [...item.referers].slice(-3),
+    }));
+}
+
+function adminStats() {
+  const records = readVisits();
+  const today = new Date().toISOString().slice(0, 10);
+  const pageviews = records.filter((record) => record.type === "pageview");
+  const dataViews = records.filter((record) => record.type === "data_view");
+  const uniqueIps = new Set(records.map((record) => record.ip).filter(Boolean));
+  return {
+    totalEvents: records.length,
+    totalVisits: pageviews.length,
+    todayVisits: pageviews.filter((record) => String(record.ts).startsWith(today)).length,
+    dataViews: dataViews.length,
+    uniqueIps: uniqueIps.size,
+    devices: topCounts(records, "device"),
+    categories: topCounts(records.filter((record) => record.type === "category"), "category"),
+    keywords: topCounts(records.filter((record) => record.type === "search"), "keyword"),
+    visitors: buildVisitors(records),
+    recent: records
+      .slice(-120)
+      .reverse()
+      .map((record) => ({
+        ...record,
+        action: actionText(record),
+        browser: record.browser || browserFromUa(record.ua),
+        visitorId: record.visitorId || visitorIdFrom(record.ip, record.ua),
+      })),
+  };
+}
+
+function adminPage() {
+  return `<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>报价访问后台</title>
+  <style>
+    body{margin:0;background:#f4f6f8;color:#17202a;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif}
+    main{width:min(1180px,calc(100% - 24px));margin:18px auto 34px}
+    header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px}
+    h1{font-size:24px;margin:0 0 6px}
+    p{margin:0;color:#65717b;font-size:13px;line-height:1.6}
+    a{color:#0969da}
+    .grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+    .card{background:#fff;border:1px solid #dce2e6;border-radius:8px;padding:14px}
+    .card span{display:block;color:#65717b;font-size:13px;margin-bottom:6px}
+    .card strong{font-size:24px}
+    section{background:#fff;border:1px solid #dce2e6;border-radius:8px;margin-top:12px;padding:14px;overflow:auto}
+    h2{font-size:17px;margin:0 0 10px}
+    table{width:100%;border-collapse:collapse;font-size:13px;min-width:780px}
+    th,td{border-bottom:1px solid #e7ecef;padding:9px 8px;text-align:left;vertical-align:top}
+    th{background:#f0f3f5;color:#38424c;font-weight:650}
+    ul{margin:0;padding-left:18px}
+    .lists{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+    .muted{color:#65717b}
+    .tag{display:inline-block;background:#eef6ff;color:#0958b8;border:1px solid #d7eaff;border-radius:999px;padding:2px 7px;margin:0 4px 4px 0}
+    .toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+    input,button{height:34px;border:1px solid #cfd7de;border-radius:6px;background:#fff;padding:0 10px;font:inherit}
+    button{cursor:pointer;background:#0969da;color:#fff;border-color:#0969da}
+    @media(max-width:860px){.grid{grid-template-columns:1fr 1fr}.lists{grid-template-columns:1fr}header{display:block}}
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>报价访问后台</h1>
+        <p>后台入口：<a href="/admin">/admin</a>。目前能识别到 IP、设备、浏览器、访问时间、看过的分类和搜索词；微信昵称需要后续接公众号授权登录。</p>
+      </div>
+      <button onclick="location.reload()">刷新</button>
+    </header>
+    <div class="grid">
+      <div class="card"><span>总打开次数</span><strong id="totalVisits">-</strong></div>
+      <div class="card"><span>今日打开</span><strong id="todayVisits">-</strong></div>
+      <div class="card"><span>查看报价数据</span><strong id="dataViews">-</strong></div>
+      <div class="card"><span>独立 IP</span><strong id="uniqueIps">-</strong></div>
+      <div class="card"><span>记录事件</span><strong id="totalEvents">-</strong></div>
+    </div>
+    <section>
+      <h2>访客列表</h2>
+      <div class="toolbar">
+        <input id="visitorFilter" placeholder="搜索 IP / 设备 / 分类 / 搜索词" />
+        <button id="exportVisitors">导出访客 CSV</button>
+      </div>
+      <table>
+        <thead><tr><th>访客</th><th>最后访问</th><th>打开/看数据</th><th>看过分类</th><th>搜索词</th><th>来源</th></tr></thead>
+        <tbody id="visitors"></tbody>
+      </table>
+    </section>
+    <section class="lists">
+      <div><h2>热门设备</h2><ul id="devices"></ul></div>
+      <div><h2>热门分类</h2><ul id="categories"></ul></div>
+      <div><h2>热门搜索</h2><ul id="keywords"></ul></div>
+    </section>
+    <section>
+      <h2>最近访问记录</h2>
+      <table>
+        <thead><tr><th>时间</th><th>访客/IP</th><th>设备</th><th>动作</th><th>分类/搜索</th><th>来源</th></tr></thead>
+        <tbody id="recent"></tbody>
+      </table>
+    </section>
+  </main>
+  <script>
+    let stats = null;
+    function esc(v){return String(v||"").replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;"}[c]})}
+    function time(v){try{return new Date(v).toLocaleString("zh-CN",{hour12:false})}catch{return v||""}}
+    function list(id, arr){document.getElementById(id).innerHTML=(arr&&arr.length?arr:[{name:"暂无",count:""}]).map(x=>"<li>"+esc(x.name)+" "+esc(x.count)+"</li>").join("")}
+    function tags(values){return (values&&values.length?values:["-"]).map(v=>v==="-"?"<span class='muted'>-</span>":"<span class='tag'>"+esc(v)+"</span>").join("")}
+    function csvCell(v){return '"'+String(v||"").replace(/"/g,'""')+'"'}
+    function downloadCsv(name, rows){
+      const csv="\\ufeff"+rows.map(row=>row.map(csvCell).join(",")).join("\\n");
+      const url=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));
+      const a=document.createElement("a"); a.href=url; a.download=name; a.click(); URL.revokeObjectURL(url);
+    }
+    function renderVisitors(){
+      const q=document.getElementById("visitorFilter").value.trim().toLowerCase();
+      const rows=(stats.visitors||[]).filter(v=>JSON.stringify(v).toLowerCase().includes(q));
+      document.getElementById("visitors").innerHTML=rows.map(v=>
+        "<tr><td><strong>"+esc(v.ip)+"</strong><br><span class='muted'>"+esc(v.id)+" / "+esc(v.device)+" / "+esc(v.browser)+"</span></td>"+
+        "<td>"+esc(time(v.lastSeen))+"<br><span class='muted'>首次 "+esc(time(v.firstSeen))+"</span></td>"+
+        "<td>"+esc(v.pageviews)+" / "+esc(v.dataViews)+"<br><span class='muted'>事件 "+esc(v.events)+"</span></td>"+
+        "<td>"+tags(v.categories)+"</td><td>"+tags(v.keywords)+"</td><td>"+tags(v.referers)+"</td></tr>"
+      ).join("") || "<tr><td colspan='6' class='muted'>暂无记录</td></tr>";
+    }
+    fetch("/api/admin/stats").then(r=>r.json()).then(d=>{
+      stats=d;
+      for (const k of ["totalVisits","todayVisits","dataViews","uniqueIps","totalEvents"]) document.getElementById(k).textContent=d[k]||0;
+      list("devices", d.devices); list("categories", d.categories); list("keywords", d.keywords);
+      renderVisitors();
+      document.getElementById("recent").innerHTML=(d.recent||[]).map(r=>
+        "<tr><td>"+esc(time(r.ts))+"</td><td><strong>"+esc(r.ip)+"</strong><br><span class='muted'>"+esc(r.visitorId)+"</span></td>"+
+        "<td>"+esc(r.device)+"<br><span class='muted'>"+esc(r.browser)+"</span></td><td>"+esc(r.action)+"</td>"+
+        "<td>"+esc(r.category||r.keyword||("-"+(r.count?(" / "+r.count+"条"):"")))+"</td><td>"+esc(r.referer)+"</td></tr>"
+      ).join("");
+      document.getElementById("visitorFilter").addEventListener("input", renderVisitors);
+      document.getElementById("exportVisitors").addEventListener("click", function(){
+        const rows=[["访客ID","IP","设备","浏览器","首次访问","最后访问","打开次数","查看数据次数","分类","搜索词","来源"]];
+        for (const v of stats.visitors||[]) rows.push([v.id,v.ip,v.device,v.browser,time(v.firstSeen),time(v.lastSeen),v.pageviews,v.dataViews,(v.categories||[]).join(" / "),(v.keywords||[]).join(" / "),(v.referers||[]).join(" / ")]);
+        downloadCsv("报价访问访客.csv", rows);
+      });
+    });
+  </script>
+</body>
+</html>`;
+}
+
 function sendFile(res, filePath) {
   const ext = path.extname(filePath).toLowerCase();
   const types = {
@@ -435,6 +680,12 @@ const server = http.createServer(async (req, res) => {
   if (requestUrl.pathname === "/api/quotes") {
     try {
       const snapshot = await fetchQuotes();
+      logVisit(req, {
+        type: "data_view",
+        path: requestUrl.pathname,
+        keyword: requestUrl.searchParams.get("keyword") || "",
+        count: snapshot.count,
+      });
       sendJson(res, 200, filterItems(snapshot, requestUrl.searchParams.get("keyword")));
     } catch (error) {
       sendJson(res, 502, {
