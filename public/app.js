@@ -13,6 +13,7 @@ const els = {
   intervalSelect: document.querySelector("#intervalSelect"),
   refreshButton: document.querySelector("#refreshButton"),
   exportButton: document.querySelector("#exportButton"),
+  categorySelect: document.querySelector("#categorySelect"),
   categoryList: document.querySelector("#categoryList"),
   categoryHint: document.querySelector("#categoryHint"),
   quoteBody: document.querySelector("#quoteBody"),
@@ -67,6 +68,15 @@ function renderCategories(items) {
   const total = items.length;
   els.categoryHint.textContent = `${groups.length} 个分类，${total} 条报价`;
 
+  const currentGroupExists = state.selectedGroup === "全部" || groups.some(([group]) => group === state.selectedGroup);
+  if (!currentGroupExists) state.selectedGroup = "全部";
+
+  els.categorySelect.innerHTML = [
+    `<option value="全部">全部 ${total}</option>`,
+    ...groups.map(([group, count]) => `<option value="${escapeHtml(group)}">${escapeHtml(group)} ${count}</option>`),
+  ].join("");
+  els.categorySelect.value = state.selectedGroup;
+
   const buttons = [
     `<button type="button" class="category-chip ${state.selectedGroup === "全部" ? "active" : ""}" data-group="全部">全部 ${total}</button>`,
     ...groups.map(
@@ -116,10 +126,10 @@ function renderTable(items) {
       const deltaText = delta > 0 ? `+${money(delta)}` : delta < 0 ? money(delta) : "持平";
 
       return `<tr class="${changed ? "changed" : ""}">
-        <td class="group">${escapeHtml(item.group)}</td>
-        <td>${escapeHtml(item.name)}</td>
-        <td class="price">${escapeHtml(item.priceText)}</td>
-        <td class="delta ${deltaClass}">${deltaText}</td>
+        <td class="group" data-label="分类">${escapeHtml(item.group)}</td>
+        <td data-label="商品">${escapeHtml(item.name)}</td>
+        <td class="price" data-label="报价">${escapeHtml(item.priceText)}</td>
+        <td class="delta ${deltaClass}" data-label="变化">${deltaText}</td>
       </tr>`;
     })
     .join("");
@@ -181,6 +191,11 @@ els.categoryList.addEventListener("click", (event) => {
   const button = event.target.closest(".category-chip");
   if (!button) return;
   state.selectedGroup = button.dataset.group;
+  renderCategories(state.allItems);
+  applyFilters();
+});
+els.categorySelect.addEventListener("change", () => {
+  state.selectedGroup = els.categorySelect.value;
   renderCategories(state.allItems);
   applyFilters();
 });

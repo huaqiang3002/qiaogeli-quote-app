@@ -155,6 +155,11 @@ button:hover {
   font-size: 13px;
 }
 
+.category-select-label {
+  display: none;
+  margin-bottom: 10px;
+}
+
 .category-list {
   display: flex;
   gap: 8px;
@@ -283,9 +288,25 @@ tr.changed {
 }
 
 @media (max-width: 760px) {
+  .app-shell {
+    width: 100%;
+    margin: 0;
+    padding: 10px;
+  }
+
+  .toolbar,
+  .controls,
+  .category-panel,
+  .summary,
+  .table-wrap {
+    border-radius: 6px;
+  }
+
   .toolbar {
     align-items: flex-start;
     flex-direction: column;
+    gap: 10px;
+    padding: 14px;
   }
 
   .controls,
@@ -296,10 +317,28 @@ tr.changed {
   .category-head {
     align-items: flex-start;
     flex-direction: column;
+    gap: 4px;
+  }
+
+  .category-select-label {
+    display: grid;
+  }
+
+  .category-list {
+    padding-bottom: 4px;
+  }
+
+  .category-chip {
+    height: 32px;
+    padding: 0 10px;
   }
 
   .controls label:first-child {
     grid-column: 1 / -1;
+  }
+
+  .controls button {
+    width: 100%;
   }
 
   h1 {
@@ -307,6 +346,70 @@ tr.changed {
   }
 
   .table-wrap {
-    max-height: calc(100vh - 330px);
+    max-height: none;
+    overflow: visible;
+    border: none;
+    background: transparent;
+  }
+
+  table {
+    min-width: 0;
+  }
+
+  thead {
+    display: none;
+  }
+
+  tbody {
+    display: grid;
+    gap: 10px;
+  }
+
+  tr {
+    display: grid;
+    gap: 6px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 12px;
+  }
+
+  th,
+  td {
+    border-bottom: 0;
+    padding: 0;
+  }
+
+  td {
+    display: grid;
+    grid-template-columns: 52px minmax(0, 1fr);
+    gap: 8px;
+    align-items: start;
+    line-height: 1.35;
+  }
+
+  td::before {
+    content: attr(data-label);
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  td.group,
+  td.price,
+  td.delta {
+    width: auto;
+  }
+
+  td.price {
+    font-size: 18px;
+  }
+
+  .empty {
+    display: block;
+    text-align: center;
+  }
+
+  .empty::before {
+    content: none;
   }
 }
