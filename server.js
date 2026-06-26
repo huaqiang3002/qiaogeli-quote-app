@@ -5,9 +5,9 @@ const { URL } = require("node:url");
 
 const PORT = Number(process.env.PORT || 4173);
 const PRICE_MARKUP = Number(process.env.PRICE_MARKUP || 50);
-const SOURCE_URL =
-  process.env.SOURCE_URL ||
+const DEFAULT_SOURCE_URL =
   "http://www.xatdtx.com/m/ykbjdQuoteList.action?is_spqc=Y&is_dls=N&gsdm=61271&pp=&km=&network=&bj=&tykhgsdm=";
+const SOURCE_URL = process.env.SOURCE_URL || DEFAULT_SOURCE_URL;
 
 const publicDir = path.join(__dirname, "public");
 let lastSnapshot = { ok: false, items: [], updatedAt: null, error: null };
@@ -95,6 +95,7 @@ function formBody(data) {
 
 async function fetchQuotes() {
   const url = new URL(SOURCE_URL);
+  url.searchParams.set("km", "");
   url.searchParams.set("datetime", Date.now().toString());
 
   const response = await fetch(url, {
