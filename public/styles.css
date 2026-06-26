@@ -73,8 +73,15 @@ h1 {
   font-size: 24px;
 }
 
+.contacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-top: 8px;
+}
+
 .contact {
-  display: inline-block;
+  display: inline-flex;
   margin-top: 8px;
   color: var(--text);
   font-size: 15px;
