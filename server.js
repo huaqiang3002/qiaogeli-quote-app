@@ -8,8 +8,12 @@ const PRICE_MARKUP = Number(process.env.PRICE_MARKUP || 50);
 const DEFAULT_SOURCE_URL =
   "http://www.xatdtx.com/m/ykbjdQuoteList.action?is_spqc=Y&is_dls=N&gsdm=61271&pp=&km=&network=&bj=&tykhgsdm=";
 const SOURCE_URL = process.env.SOURCE_URL || DEFAULT_SOURCE_URL;
+const ADMIN_USER = process.env.ADMIN_USER || "admin";
+const ADMIN_PASS = process.env.ADMIN_PASS || "Hq@18609142259!";
 
 const publicDir = path.join(__dirname, "public");
+const dataDir = path.join(__dirname, "data");
+const visitsFile = path.join(dataDir, "visits.jsonl");
 let lastSnapshot = { ok: false, items: [], updatedAt: null, error: null };
 
 function cleanText(value) {
@@ -204,6 +208,180 @@ function sendJson(res, status, data) {
   res.end(body);
 }
 
+function sendHtml(res, status, html) {
+  res.writeHead(status, {
+    "Content-Type": "text/html; charset=utf-8",
+    "Cache-Control": "no-store",
+  });
+  res.end(html);
+}
+
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    let body = "";
+    req.on("data", (chunk) => {
+      body += chunk;
+      if (body.length > 20000) req.destroy();
+    });
+    req.on("end", () => resolve(body));
+    req.on("error", reject);
+  });
+}
+
+function clientIp(req) {
+  const forwarded = req.headers["x-forwarded-for"];
+  return String(Array.isArray(forwarded) ? forwarded[0] : forwarded || req.socket.remoteAddress || "")
+    .split(",")[0]
+    .trim();
+}
+
+function deviceFromUa(userAgent) {
+  const ua = String(userAgent || "");
+  if (/MicroMessenger/i.test(ua)) return "微信";
+  if (/iPhone|iPad|iPod/i.test(ua)) return "iPhone";
+  if (/Android/i.test(ua)) return "Android";
+  if (/Windows/i.test(ua)) return "Windows";
+  if (/Macintosh/i.test(ua)) return "Mac";
+  return "其他";
+}
+
+function ensureDataDir() {
+  fs.mkdirSync(dataDir, { recursive: true });
+}
+
+function logVisit(req, event = {}) {
+  ensureDataDir();
+  const record = {
+    ts: new Date().toISOString(),
+    ip: clientIp(req),
+    ua: req.headers["user-agent"] || "",
+    device: deviceFromUa(req.headers["user-agent"]),
+    referer: req.headers.referer || "",
+    type: String(event.type || "pageview").slice(0, 40),
+    path: String(event.path || "").slice(0, 200),
+    category: String(event.category || "").slice(0, 120),
+    keyword: String(event.keyword || "").slice(0, 120),
+  };
+  fs.appendFile(visitsFile, `${JSON.stringify(record)}\n`, () => {});
+}
+
+function readVisits() {
+  try {
+    return fs
+      .readFileSync(visitsFile, "utf8")
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .map((line) => JSON.parse(line))
+      .slice(-2000);
+  } catch {
+    return [];
+  }
+}
+
+function topCounts(records, key, limit = 10) {
+  const counts = new Map();
+  for (const record of records) {
+    const value = String(record[key] || "").trim();
+    if (!value) continue;
+    counts.set(value, (counts.get(value) || 0) + 1);
+  }
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit)
+    .map(([name, count]) => ({ name, count }));
+}
+
+function adminStats() {
+  const records = readVisits();
+  const today = new Date().toISOString().slice(0, 10);
+  const pageviews = records.filter((record) => record.type === "pageview");
+  const uniqueIps = new Set(records.map((record) => record.ip).filter(Boolean));
+  return {
+    totalEvents: records.length,
+    totalVisits: pageviews.length,
+    todayVisits: pageviews.filter((record) => String(record.ts).startsWith(today)).length,
+    uniqueIps: uniqueIps.size,
+    devices: topCounts(records, "device"),
+    categories: topCounts(records.filter((record) => record.type === "category"), "category"),
+    keywords: topCounts(records.filter((record) => record.type === "search"), "keyword"),
+    recent: records.slice(-80).reverse(),
+  };
+}
+
+function requireAdmin(req, res) {
+  const header = req.headers.authorization || "";
+  const prefix = "Basic ";
+  if (header.startsWith(prefix)) {
+    const decoded = Buffer.from(header.slice(prefix.length), "base64").toString("utf8");
+    const splitAt = decoded.indexOf(":");
+    const user = decoded.slice(0, splitAt);
+    const pass = decoded.slice(splitAt + 1);
+    if (user === ADMIN_USER && pass === ADMIN_PASS) return true;
+  }
+  res.writeHead(401, {
+    "WWW-Authenticate": 'Basic realm="Qiaogeli Admin"',
+    "Content-Type": "text/plain; charset=utf-8",
+  });
+  res.end("需要后台账号密码");
+  return false;
+}
+
+function adminPage() {
+  return `<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>报价访问后台</title>
+  <style>
+    body{margin:0;background:#f5f7f8;color:#182026;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif}
+    main{width:min(1100px,calc(100% - 24px));margin:18px auto}
+    h1{font-size:24px;margin:0 0 14px}
+    .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+    .card{background:#fff;border:1px solid #dce2e6;border-radius:8px;padding:14px}
+    .card span{display:block;color:#65717b;font-size:13px;margin-bottom:6px}
+    .card strong{font-size:24px}
+    section{background:#fff;border:1px solid #dce2e6;border-radius:8px;margin-top:12px;padding:14px}
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    th,td{border-bottom:1px solid #e7ecef;padding:8px;text-align:left;vertical-align:top}
+    th{background:#f0f3f5}
+    ul{margin:0;padding-left:18px}
+    @media(max-width:760px){.grid{grid-template-columns:1fr 1fr} table{font-size:12px}}
+  </style>
+</head>
+<body>
+  <main>
+    <h1>报价访问后台</h1>
+    <div class="grid">
+      <div class="card"><span>总访问</span><strong id="totalVisits">-</strong></div>
+      <div class="card"><span>今日访问</span><strong id="todayVisits">-</strong></div>
+      <div class="card"><span>独立 IP</span><strong id="uniqueIps">-</strong></div>
+      <div class="card"><span>事件数</span><strong id="totalEvents">-</strong></div>
+    </div>
+    <section><h2>热门设备</h2><ul id="devices"></ul></section>
+    <section><h2>热门分类</h2><ul id="categories"></ul></section>
+    <section><h2>热门搜索</h2><ul id="keywords"></ul></section>
+    <section>
+      <h2>最近访问</h2>
+      <table>
+        <thead><tr><th>时间</th><th>IP</th><th>设备</th><th>事件</th><th>分类/搜索</th><th>来源</th></tr></thead>
+        <tbody id="recent"></tbody>
+      </table>
+    </section>
+  </main>
+  <script>
+    function esc(v){return String(v||"").replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;"}[c]})}
+    function list(id, arr){document.getElementById(id).innerHTML=(arr.length?arr:[{name:"暂无",count:""}]).map(x=>"<li>"+esc(x.name)+" "+esc(x.count)+"</li>").join("")}
+    fetch("/api/admin/stats").then(r=>r.json()).then(d=>{
+      for (const k of ["totalVisits","todayVisits","uniqueIps","totalEvents"]) document.getElementById(k).textContent=d[k];
+      list("devices", d.devices); list("categories", d.categories); list("keywords", d.keywords);
+      document.getElementById("recent").innerHTML=d.recent.map(r=>"<tr><td>"+esc(r.ts)+"</td><td>"+esc(r.ip)+"</td><td>"+esc(r.device)+"</td><td>"+esc(r.type)+"</td><td>"+esc(r.category||r.keyword)+"</td><td>"+esc(r.referer)+"</td></tr>").join("");
+    });
+  </script>
+</body>
+</html>`;
+}
+
 function sendFile(res, filePath) {
   const ext = path.extname(filePath).toLowerCase();
   const types = {
@@ -229,6 +407,30 @@ function sendFile(res, filePath) {
 
 const server = http.createServer(async (req, res) => {
   const requestUrl = new URL(req.url, `http://${req.headers.host}`);
+
+  if (requestUrl.pathname === "/admin") {
+    if (!requireAdmin(req, res)) return;
+    sendHtml(res, 200, adminPage());
+    return;
+  }
+
+  if (requestUrl.pathname === "/api/admin/stats") {
+    if (!requireAdmin(req, res)) return;
+    sendJson(res, 200, adminStats());
+    return;
+  }
+
+  if (requestUrl.pathname === "/api/track" && req.method === "POST") {
+    try {
+      const body = await readBody(req);
+      const event = body ? JSON.parse(body) : {};
+      logVisit(req, event);
+      sendJson(res, 200, { ok: true });
+    } catch {
+      sendJson(res, 400, { ok: false });
+    }
+    return;
+  }
 
   if (requestUrl.pathname === "/api/quotes") {
     try {

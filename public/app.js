@@ -55,6 +55,19 @@ function setStatus(type, text) {
   els.statusText.textContent = text;
 }
 
+function trackEvent(event) {
+  const payload = {
+    path: location.pathname + location.search,
+    ...event,
+  };
+  fetch("/api/track", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    keepalive: true,
+  }).catch(() => {});
+}
+
 function getGroups(items) {
   const counts = new Map();
   for (const item of items) {
@@ -181,7 +194,11 @@ function exportCsv() {
 let keywordTimer = null;
 els.keywordInput.addEventListener("input", () => {
   clearTimeout(keywordTimer);
-  keywordTimer = setTimeout(applyFilters, 160);
+  keywordTimer = setTimeout(() => {
+    applyFilters();
+    const keyword = els.keywordInput.value.trim();
+    if (keyword) trackEvent({ type: "search", keyword });
+  }, 260);
 });
 els.categoryList.addEventListener("click", (event) => {
   const button = event.target.closest(".category-chip");
@@ -189,15 +206,18 @@ els.categoryList.addEventListener("click", (event) => {
   state.selectedGroup = button.dataset.group;
   renderCategories(state.allItems);
   applyFilters();
+  trackEvent({ type: "category", category: state.selectedGroup });
 });
 els.categorySelect.addEventListener("change", () => {
   state.selectedGroup = els.categorySelect.value;
   renderCategories(state.allItems);
   applyFilters();
+  trackEvent({ type: "category", category: state.selectedGroup });
 });
 els.intervalSelect.addEventListener("change", resetTimer);
 els.refreshButton.addEventListener("click", refreshQuotes);
 els.exportButton.addEventListener("click", exportCsv);
 
 resetTimer();
+trackEvent({ type: "pageview" });
 refreshQuotes();
