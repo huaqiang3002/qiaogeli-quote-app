@@ -68,6 +68,23 @@ function trackEvent(event) {
   }).catch(() => {});
 }
 
+async function ensureWechatAuth() {
+  try {
+    const response = await fetch("/api/auth/status", { cache: "no-store" });
+    const data = await response.json();
+    if (
+      data.configured &&
+      data.auto &&
+      data.inWechat &&
+      !data.authenticated &&
+      sessionStorage.getItem("qg_wechat_auth_tried") !== "1"
+    ) {
+      sessionStorage.setItem("qg_wechat_auth_tried", "1");
+      location.href = `/auth/wechat?return=${encodeURIComponent(location.pathname + location.search)}`;
+    }
+  } catch {}
+}
+
 function getGroups(items) {
   const counts = new Map();
   for (const item of items) {
@@ -218,6 +235,7 @@ els.intervalSelect.addEventListener("change", resetTimer);
 els.refreshButton.addEventListener("click", refreshQuotes);
 els.exportButton.addEventListener("click", exportCsv);
 
+ensureWechatAuth();
 resetTimer();
 trackEvent({ type: "pageview" });
 refreshQuotes();
