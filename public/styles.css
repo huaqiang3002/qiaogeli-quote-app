@@ -29,6 +29,7 @@ body {
 
 .toolbar,
 .controls,
+.category-panel,
 .summary,
 .table-wrap {
   background: var(--panel);
@@ -54,6 +55,19 @@ body {
 h1 {
   margin: 0;
   font-size: 24px;
+}
+
+.contact {
+  display: inline-block;
+  margin-top: 8px;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.contact:hover {
+  color: var(--accent-dark);
 }
 
 .status {
@@ -121,6 +135,48 @@ button {
 
 button:hover {
   background: #2a343c;
+}
+
+.category-panel {
+  margin-top: 12px;
+  padding: 14px;
+}
+
+.category-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.category-head span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.category-list {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.category-chip {
+  flex: 0 0 auto;
+  height: 34px;
+  background: #f7f9fa;
+  color: var(--text);
+  border-color: var(--line);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.category-chip:hover,
+.category-chip.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
 }
 
 .summary {
@@ -235,6 +291,11 @@ tr.changed {
   .controls,
   .summary {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .category-head {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .controls label:first-child {

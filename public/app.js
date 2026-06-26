@@ -1,8 +1,11 @@
 const state = {
-  items: [],
+  allItems: [],
+  visibleItems: [],
   previousPrices: new Map(),
+  selectedGroup: "全部",
   timer: null,
   busy: false,
+  updatedAt: null,
 };
 
 const els = {
@@ -10,6 +13,8 @@ const els = {
   intervalSelect: document.querySelector("#intervalSelect"),
   refreshButton: document.querySelector("#refreshButton"),
   exportButton: document.querySelector("#exportButton"),
+  categoryList: document.querySelector("#categoryList"),
+  categoryHint: document.querySelector("#categoryHint"),
   quoteBody: document.querySelector("#quoteBody"),
   statusDot: document.querySelector("#statusDot"),
   statusText: document.querySelector("#statusText"),
@@ -47,6 +52,45 @@ function escapeHtml(value) {
 function setStatus(type, text) {
   els.statusDot.className = `dot ${type || ""}`.trim();
   els.statusText.textContent = text;
+}
+
+function getGroups(items) {
+  const counts = new Map();
+  for (const item of items) {
+    counts.set(item.group, (counts.get(item.group) || 0) + 1);
+  }
+  return [...counts.entries()].sort((a, b) => a[0].localeCompare(b[0], "zh-CN"));
+}
+
+function renderCategories(items) {
+  const groups = getGroups(items);
+  const total = items.length;
+  els.categoryHint.textContent = `${groups.length} 个分类，${total} 条报价`;
+
+  const buttons = [
+    `<button type="button" class="category-chip ${state.selectedGroup === "全部" ? "active" : ""}" data-group="全部">全部 ${total}</button>`,
+    ...groups.map(
+      ([group, count]) =>
+        `<button type="button" class="category-chip ${state.selectedGroup === group ? "active" : ""}" data-group="${escapeHtml(group)}">${escapeHtml(group)} ${count}</button>`
+    ),
+  ];
+  els.categoryList.innerHTML = buttons.join("");
+}
+
+function applyFilters() {
+  const keyword = els.keywordInput.value.trim().toLowerCase();
+  state.visibleItems = state.allItems.filter((item) => {
+    const matchGroup = state.selectedGroup === "全部" || item.group === state.selectedGroup;
+    const matchKeyword =
+      !keyword ||
+      item.name.toLowerCase().includes(keyword) ||
+      item.group.toLowerCase().includes(keyword) ||
+      item.priceText.toLowerCase().includes(keyword);
+    return matchGroup && matchKeyword;
+  });
+
+  renderSummary(state.visibleItems, state.updatedAt);
+  renderTable(state.visibleItems);
 }
 
 function renderSummary(items, updatedAt) {
@@ -88,21 +132,18 @@ async function refreshQuotes() {
   state.busy = true;
   setStatus("", "正在刷新");
 
-  const keyword = els.keywordInput.value.trim();
-  const params = new URLSearchParams();
-  if (keyword) params.set("keyword", keyword);
-
   try {
-    const response = await fetch(`/api/quotes?${params.toString()}`, { cache: "no-store" });
+    const response = await fetch("/api/quotes", { cache: "no-store" });
     const data = await response.json();
     if (!response.ok || !data.ok) {
       throw new Error(data.error || "刷新失败");
     }
 
-    renderSummary(data.items, data.updatedAt);
-    renderTable(data.items);
+    state.allItems = data.items;
+    state.updatedAt = data.updatedAt;
+    renderCategories(data.items);
+    applyFilters();
     state.previousPrices = new Map(data.items.map((item) => [item.id, item.price]));
-    state.items = data.items;
     setStatus("live", `已更新 ${formatTime(data.updatedAt)}`);
   } catch (error) {
     setStatus("error", error.message);
@@ -118,7 +159,7 @@ function resetTimer() {
 
 function exportCsv() {
   const header = ["分类", "商品", "报价"];
-  const rows = state.items.map((item) => [item.group, item.name, item.priceText]);
+  const rows = state.visibleItems.map((item) => [item.group, item.name, item.priceText]);
   const csv = [header, ...rows]
     .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
     .join("\n");
@@ -134,7 +175,14 @@ function exportCsv() {
 let keywordTimer = null;
 els.keywordInput.addEventListener("input", () => {
   clearTimeout(keywordTimer);
-  keywordTimer = setTimeout(refreshQuotes, 300);
+  keywordTimer = setTimeout(applyFilters, 160);
+});
+els.categoryList.addEventListener("click", (event) => {
+  const button = event.target.closest(".category-chip");
+  if (!button) return;
+  state.selectedGroup = button.dataset.group;
+  renderCategories(state.allItems);
+  applyFilters();
 });
 els.intervalSelect.addEventListener("change", resetTimer);
 els.refreshButton.addEventListener("click", refreshQuotes);

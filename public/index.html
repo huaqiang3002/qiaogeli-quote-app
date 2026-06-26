@@ -12,6 +12,7 @@
         <div>
           <p class="eyebrow">西安乔戈里科技有限公司</p>
           <h1>实时产品报价</h1>
+          <a class="contact" href="tel:18609142259">华强 18609142259</a>
         </div>
         <div class="status">
           <span id="statusDot" class="dot"></span>
@@ -35,6 +36,14 @@
         </label>
         <button id="refreshButton" type="button">立即刷新</button>
         <button id="exportButton" type="button">导出 CSV</button>
+      </section>
+
+      <section class="category-panel" aria-label="分类筛选">
+        <div class="category-head">
+          <strong>分类</strong>
+          <span id="categoryHint">正在读取分类...</span>
+        </div>
+        <div id="categoryList" class="category-list"></div>
       </section>
 
       <section class="summary" aria-label="报价摘要">

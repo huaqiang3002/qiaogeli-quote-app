@@ -9,6 +9,6 @@ services:
       - key: NODE_ENV
         value: production
       - key: SOURCE_URL
-        value: http://www.xatdtx.com/m/ykbjdQuoteList.action?is_spqc=Y&is_dls=N&gsdm=61271&pp=&km=%E8%8B%B9%E6%9E%9C%E6%89%8B%E6%9C%BA&network=&bj=&tykhgsdm=
+        value: http://www.xatdtx.com/m/ykbjdQuoteList.action?is_spqc=Y&is_dls=N&gsdm=61271&pp=&km=&network=&bj=&tykhgsdm=
       - key: PRICE_MARKUP
         value: 50

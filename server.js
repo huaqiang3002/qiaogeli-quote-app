@@ -7,7 +7,7 @@ const PORT = Number(process.env.PORT || 4173);
 const PRICE_MARKUP = Number(process.env.PRICE_MARKUP || 50);
 const SOURCE_URL =
   process.env.SOURCE_URL ||
-  "http://www.xatdtx.com/m/ykbjdQuoteList.action?is_spqc=Y&is_dls=N&gsdm=61271&pp=&km=%E8%8B%B9%E6%9E%9C%E6%89%8B%E6%9C%BA&network=&bj=&tykhgsdm=";
+  "http://www.xatdtx.com/m/ykbjdQuoteList.action?is_spqc=Y&is_dls=N&gsdm=61271&pp=&km=&network=&bj=&tykhgsdm=";
 
 const publicDir = path.join(__dirname, "public");
 let lastSnapshot = { ok: false, items: [], updatedAt: null, error: null };
@@ -31,9 +31,12 @@ function parseQuotes(html) {
   const items = [];
   let currentGroup = "未分类";
   let sourceTitle = "产品报价单";
+  let pageCount = 1;
 
   const pageTitle = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
   if (pageTitle) sourceTitle = cleanText(pageTitle[1]);
+  const pageCountMatch = html.match(/var\s+pageCount\s*=\s*['"]?(\d+)['"]?/i);
+  if (pageCountMatch) pageCount = Number(pageCountMatch[1]) || 1;
 
   const contentStart = html.indexOf('id="content"');
   const contentEnd = html.indexOf('<div class="ykbj_foot"', contentStart);
@@ -41,7 +44,7 @@ function parseQuotes(html) {
     contentStart >= 0 ? html.slice(contentStart, contentEnd > contentStart ? contentEnd : undefined) : html;
 
   const tokenPattern =
-    /<h4\b[\s\S]*?<\/h4>|<div\s+class=["'][^"']*\brow\b[^"']*["'][\s\S]*?<\/div>\s*<!--\s*结束行\s*-->/gi;
+    /<h4\b[\s\S]*?<\/h4>|<div\s+class\s*=\s*["'][^"']*\brow\b[^"']*["'][^>]*>\s*<div\s+class\s*=\s*["'][^"']*\bcol-xs-4\b[^"']*\bview-goods-type\b[^"']*["'][^>]*>[\s\S]*?<\/div>\s*<div\s+class\s*=\s*["'][^"']*\bcol-xs-3\b[^"']*\bview-quote\b[^"']*["'][^>]*>[\s\S]*?<\/div>\s*<\/div>/gi;
 
   for (const tokenMatch of content.matchAll(tokenPattern)) {
     const token = tokenMatch[0];
@@ -51,10 +54,10 @@ function parseQuotes(html) {
     }
 
     const nameMatch = token.match(
-      /<div\s+class=["'][^"']*\bcol-xs-4\b[^"']*\bview-goods-type\b[^"']*["'][^>]*>([\s\S]*?)<\/div>/i
+      /<div\s+class\s*=\s*["'][^"']*\bcol-xs-4\b[^"']*\bview-goods-type\b[^"']*["'][^>]*>([\s\S]*?)<\/div>/i
     );
     const priceMatch = token.match(
-      /<div\s+class=["'][^"']*\bcol-xs-3\b[^"']*\bview-quote\b[^"']*["'][^>]*>([\s\S]*?)<\/div>/i
+      /<div\s+class\s*=\s*["'][^"']*\bcol-xs-3\b[^"']*\bview-quote\b[^"']*["'][^>]*>([\s\S]*?)<\/div>/i
     );
 
     const name = cleanText(nameMatch && nameMatch[1]);
@@ -73,7 +76,21 @@ function parseQuotes(html) {
     });
   }
 
-  return { sourceTitle, items };
+  return { sourceTitle, items, pageCount };
+}
+
+function cookieHeader(headers) {
+  const raw = typeof headers.getSetCookie === "function" ? headers.getSetCookie() : [];
+  const setCookies = raw.length ? raw : [headers.get("set-cookie")].filter(Boolean);
+  return setCookies.map((cookie) => cookie.split(";")[0]).join("; ");
+}
+
+function formBody(data) {
+  const body = new URLSearchParams();
+  for (const [key, value] of Object.entries(data)) {
+    body.set(key, String(value ?? ""));
+  }
+  return body;
 }
 
 async function fetchQuotes() {
@@ -93,15 +110,55 @@ async function fetchQuotes() {
   }
 
   const html = await response.text();
+  const sessionCookie = cookieHeader(response.headers);
   const parsed = parseQuotes(html);
+  const items = [...parsed.items];
+
+  for (let currentPage = 2; currentPage <= parsed.pageCount; currentPage += 1) {
+    const nextResponse = await fetch("http://www.xatdtx.com/m/mobileYkfetchNextList.action", {
+      method: "POST",
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126 Safari/537.36",
+        Accept: "text/html,*/*;q=0.8",
+        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+        Cookie: sessionCookie,
+        Referer: url.toString(),
+      },
+      body: formBody({
+        is_spqc: "Y",
+        start: (currentPage - 1) * 200 + 2,
+        km: "",
+        pp: "",
+        arg_name: "",
+        s_jg: "0",
+        e_jg: "9999999",
+        lastpp: "",
+        type: "",
+        bj: "",
+        tykhgsdm: "",
+        currentPage,
+        lastname: "",
+        date: Date.now(),
+        is_dls: "N",
+      }),
+    });
+
+    if (!nextResponse.ok) break;
+    const nextHtml = await nextResponse.text();
+    const nextParsed = parseQuotes(nextHtml);
+    if (!nextParsed.items.length) break;
+    items.push(...nextParsed.items);
+  }
+
   const now = new Date().toISOString();
   lastSnapshot = {
     ok: true,
     sourceUrl: url.toString(),
     title: parsed.sourceTitle,
-    count: parsed.items.length,
+    count: items.length,
     updatedAt: now,
-    items: parsed.items,
+    items,
     error: null,
   };
   return lastSnapshot;
