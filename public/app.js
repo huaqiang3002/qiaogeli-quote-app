@@ -72,16 +72,16 @@ function renderCategories(items) {
   if (!currentGroupExists) state.selectedGroup = "全部";
 
   els.categorySelect.innerHTML = [
-    `<option value="全部">全部 ${total}</option>`,
-    ...groups.map(([group, count]) => `<option value="${escapeHtml(group)}">${escapeHtml(group)} ${count}</option>`),
+    `<option value="全部">全部</option>`,
+    ...groups.map(([group]) => `<option value="${escapeHtml(group)}">${escapeHtml(group)}</option>`),
   ].join("");
   els.categorySelect.value = state.selectedGroup;
 
   const buttons = [
-    `<button type="button" class="category-chip ${state.selectedGroup === "全部" ? "active" : ""}" data-group="全部">全部 ${total}</button>`,
+    `<button type="button" class="category-chip ${state.selectedGroup === "全部" ? "active" : ""}" data-group="全部">全部</button>`,
     ...groups.map(
-      ([group, count]) =>
-        `<button type="button" class="category-chip ${state.selectedGroup === group ? "active" : ""}" data-group="${escapeHtml(group)}">${escapeHtml(group)} ${count}</button>`
+      ([group]) =>
+        `<button type="button" class="category-chip ${state.selectedGroup === group ? "active" : ""}" data-group="${escapeHtml(group)}">${escapeHtml(group)}</button>`
     ),
   ];
   els.categoryList.innerHTML = buttons.join("");

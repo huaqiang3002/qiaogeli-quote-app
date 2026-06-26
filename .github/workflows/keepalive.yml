@@ -1,0 +1,14 @@
+name: Keep Render Service Awake
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping quote app
+        run: |
+          curl --max-time 30 --retry 2 --retry-delay 5 https://quote-mini-app.onrender.com/api/quotes >/dev/null
