@@ -11,6 +11,22 @@
   --blue: #206fc9;
 }
 
+.site-footer {
+  padding: 18px 12px 24px;
+  text-align: center;
+  font-size: 12px;
+}
+
+.site-footer a {
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.site-footer a:hover {
+  color: var(--text);
+  text-decoration: underline;
+}
+
 * {
   box-sizing: border-box;
 }
