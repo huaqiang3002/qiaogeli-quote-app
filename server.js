@@ -635,6 +635,19 @@ function isWechatUa(userAgent) {
   return /MicroMessenger/i.test(String(userAgent || ""));
 }
 
+function wechatVersionFromUa(userAgent) {
+  const match = String(userAgent || "").match(/MicroMessenger\/([\d.]+)/i);
+  return match ? match[1] : "";
+}
+
+function shareTagFromPath(value) {
+  try {
+    return new URL(String(value || "/"), SITE_ORIGIN).searchParams.get("share") || "";
+  } catch {
+    return "";
+  }
+}
+
 function parseCookies(req) {
   const cookies = {};
   for (const part of String(req.headers.cookie || "").split(";")) {
@@ -801,6 +814,9 @@ function logVisit(req, event = {}) {
     wechatOpenid: wechat?.openid || "",
     wechatNickname: wechat?.nickname || "",
     wechatAvatar: wechat?.headimgurl || "",
+    isWechat: isWechatUa(ua),
+    wechatVersion: wechatVersionFromUa(ua),
+    shareTag: shareTagFromPath(event.path || req.headers.referer || ""),
   };
   fs.appendFile(visitsFile, `${JSON.stringify(record)}\n`, () => {});
 }
@@ -824,6 +840,9 @@ function buildVisitors(records) {
         wechatOpenid: record.wechatOpenid || "",
         wechatNickname: record.wechatNickname || "",
         wechatAvatar: record.wechatAvatar || "",
+        isWechat: Boolean(record.isWechat || isWechatUa(record.ua)),
+        wechatVersion: record.wechatVersion || wechatVersionFromUa(record.ua),
+        shareTags: new Set(),
         categories: new Set(),
         keywords: new Set(),
         referers: new Set(),
@@ -834,6 +853,9 @@ function buildVisitors(records) {
     item.wechatOpenid = item.wechatOpenid || record.wechatOpenid || "";
     item.wechatNickname = item.wechatNickname || record.wechatNickname || "";
     item.wechatAvatar = item.wechatAvatar || record.wechatAvatar || "";
+    item.isWechat = item.isWechat || Boolean(record.isWechat || isWechatUa(record.ua));
+    item.wechatVersion = item.wechatVersion || record.wechatVersion || wechatVersionFromUa(record.ua);
+    if (record.shareTag) item.shareTags.add(record.shareTag);
     if (record.type === "pageview") item.pageviews += 1;
     if (record.type === "data_view") item.dataViews += 1;
     if (record.category) item.categories.add(record.category);
@@ -850,6 +872,7 @@ function buildVisitors(records) {
       categories: [...item.categories].slice(-8),
       keywords: [...item.keywords].slice(-8),
       referers: [...item.referers].slice(-3),
+      shareTags: [...item.shareTags].slice(-8),
     }));
 }
 
@@ -858,19 +881,36 @@ function adminStats() {
   const today = new Date().toISOString().slice(0, 10);
   const pageviews = records.filter((record) => record.type === "pageview");
   const dataViews = records.filter((record) => record.type === "data_view");
+  const wechatRecords = records.filter((record) => record.isWechat || isWechatUa(record.ua));
+  const wechatPageviews = wechatRecords.filter((record) => record.type === "pageview");
   const uniqueIps = new Set(records.map((record) => record.ip).filter(Boolean));
   return {
     wechatAuthConfigured: Boolean(WECHAT_APP_ID && WECHAT_APP_SECRET),
+    wechatAuthAuto: WECHAT_AUTH_AUTO,
     totalEvents: records.length,
     totalVisits: pageviews.length,
     todayVisits: pageviews.filter((record) => String(record.ts).startsWith(today)).length,
     dataViews: dataViews.length,
     uniqueIps: uniqueIps.size,
     wechatUsers: new Set(records.map((record) => record.wechatOpenid).filter(Boolean)).size,
+    wechatVisitors: new Set(
+      wechatRecords.map((record) => record.wechatOpenid || record.visitorId || visitorIdFrom(record.ip, record.ua))
+    ).size,
+    wechatVisits: wechatPageviews.length,
     devices: topCounts(records, "device"),
     categories: topCounts(records.filter((record) => record.type === "category"), "category"),
     keywords: topCounts(records.filter((record) => record.type === "search"), "keyword"),
     visitors: buildVisitors(records),
+    recentWechat: wechatRecords
+      .slice(-120)
+      .reverse()
+      .map((record) => ({
+        ...record,
+        action: actionText(record),
+        browser: record.browser || browserFromUa(record.ua),
+        visitorId: record.wechatOpenid || record.visitorId || visitorIdFrom(record.ip, record.ua),
+        wechatVersion: record.wechatVersion || wechatVersionFromUa(record.ua),
+      })),
     recent: records
       .slice(-120)
       .reverse()
@@ -956,6 +996,63 @@ function adminPage() {
 </html>`;
 }
 
+function wechatAdminPage() {
+  return `<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>微信访问记录</title>
+  <style>
+    body{margin:0;background:#f4f6f8;color:#17202a;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif}
+    main{width:min(1180px,calc(100% - 24px));margin:18px auto 32px}header{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+    h1{font-size:24px;margin:0 0 6px}p{margin:0;color:#65717b;font-size:13px;line-height:1.6}a{color:#0969da}
+    .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:14px}.card,section{background:#fff;border:1px solid #dce2e6;border-radius:8px}
+    .card{padding:14px}.card span{display:block;color:#65717b;font-size:13px;margin-bottom:6px}.card strong{font-size:25px}
+    section{padding:14px;margin-top:12px;overflow:auto}h2{font-size:17px;margin:0 0 10px}
+    table{width:100%;border-collapse:collapse;font-size:13px;min-width:920px}th,td{border-bottom:1px solid #e7ecef;padding:9px 8px;text-align:left;vertical-align:top}th{background:#f0f3f5}
+    .muted{color:#65717b}.tag{display:inline-block;background:#eaf7ee;color:#137333;border:1px solid #ccebd5;border-radius:999px;padding:2px 7px;margin:0 4px 4px 0}
+    input,button{height:34px;border:1px solid #cfd7de;border-radius:6px;padding:0 10px;font:inherit}button{background:#087f5b;color:#fff;border-color:#087f5b;cursor:pointer}
+    .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}.avatar{width:30px;height:30px;border-radius:50%;vertical-align:middle;margin-right:6px}
+    @media(max-width:760px){.grid{grid-template-columns:1fr 1fr}header{display:block}}
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div><h1>微信访问记录</h1><p>识别微信内置浏览器访问。当前个人未认证公众号无法获取昵称时，以访客编号、IP、设备和行为区分。</p></div>
+      <p><a href="/admin">返回全部访问后台</a></p>
+    </header>
+    <div class="grid">
+      <div class="card"><span>微信访客</span><strong id="wechatVisitors">-</strong></div>
+      <div class="card"><span>微信打开次数</span><strong id="wechatVisits">-</strong></div>
+      <div class="card"><span>微信授权用户</span><strong id="wechatUsers">-</strong></div>
+      <div class="card"><span>微信行为记录</span><strong id="wechatEvents">-</strong></div>
+    </div>
+    <section>
+      <h2>微信访客</h2>
+      <div class="toolbar"><input id="filter" placeholder="搜索 IP、访客编号、分类、关键词" /><button id="export">导出 CSV</button></div>
+      <table><thead><tr><th>访客</th><th>最后访问</th><th>打开/看报价</th><th>分类</th><th>搜索词</th><th>分享来源</th></tr></thead><tbody id="visitors"></tbody></table>
+    </section>
+    <section>
+      <h2>最近微信访问</h2>
+      <table><thead><tr><th>时间</th><th>访客/IP</th><th>设备</th><th>微信版本</th><th>动作</th><th>分类/搜索</th><th>分享来源</th></tr></thead><tbody id="records"></tbody></table>
+    </section>
+  </main>
+  <script>
+    let data=null;
+    const esc=v=>String(v||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;"}[c]));
+    const time=v=>{try{return new Date(v).toLocaleString("zh-CN",{hour12:false})}catch{return v||""}};
+    const tags=v=>(v&&v.length?v:["-"]).map(x=>x==="-"?"<span class='muted'>-</span>":"<span class='tag'>"+esc(x)+"</span>").join("");
+    const csv=v=>'"'+String(v||"").replace(/"/g,'""')+'"';
+    function name(v){return v.wechatNickname?("<div><img class='avatar' src='"+esc(v.wechatAvatar)+"'><strong>"+esc(v.wechatNickname)+"</strong></div>"):"<strong>微信访客</strong><br>"}
+    function render(){const q=document.getElementById("filter").value.toLowerCase();const list=(data.visitors||[]).filter(v=>v.isWechat&&JSON.stringify(v).toLowerCase().includes(q));document.getElementById("visitors").innerHTML=list.map(v=>"<tr><td>"+name(v)+"<span class='muted'>"+esc(v.ip)+" / "+esc(v.id)+"</span></td><td>"+esc(time(v.lastSeen))+"</td><td>"+esc(v.pageviews)+" / "+esc(v.dataViews)+"</td><td>"+tags(v.categories)+"</td><td>"+tags(v.keywords)+"</td><td>"+tags(v.shareTags)+"</td></tr>").join("")||"<tr><td colspan='6' class='muted'>暂无微信访客</td></tr>"}
+    fetch("/api/admin/stats").then(r=>r.json()).then(d=>{data=d;document.getElementById("wechatVisitors").textContent=d.wechatVisitors||0;document.getElementById("wechatVisits").textContent=d.wechatVisits||0;document.getElementById("wechatUsers").textContent=d.wechatUsers||0;document.getElementById("wechatEvents").textContent=(d.recentWechat||[]).length;render();document.getElementById("records").innerHTML=(d.recentWechat||[]).map(r=>"<tr><td>"+esc(time(r.ts))+"</td><td>"+(r.wechatNickname?("<strong>"+esc(r.wechatNickname)+"</strong><br>"):"<strong>微信访客</strong><br>")+"<span class='muted'>"+esc(r.ip)+" / "+esc(r.visitorId)+"</span></td><td>"+esc(r.device)+"</td><td>"+esc(r.wechatVersion||"未知")+"</td><td>"+esc(r.action)+"</td><td>"+esc(r.category||r.keyword||"-")+"</td><td>"+esc(r.shareTag||"-")+"</td></tr>").join("")||"<tr><td colspan='7' class='muted'>暂无微信访问记录</td></tr>";document.getElementById("filter").addEventListener("input",render);document.getElementById("export").addEventListener("click",()=>{const rows=[["访客编号","微信昵称","OpenID","IP","设备","微信版本","最后访问","打开次数","查看报价次数","分类","搜索词","分享来源"]];for(const v of (d.visitors||[]).filter(v=>v.isWechat))rows.push([v.id,v.wechatNickname||"",v.wechatOpenid||"",v.ip,v.device,v.wechatVersion,time(v.lastSeen),v.pageviews,v.dataViews,(v.categories||[]).join("/"),(v.keywords||[]).join("/"),(v.shareTags||[]).join("/")]);const content="\\ufeff"+rows.map(r=>r.map(csv).join(",")).join("\\n");const url=URL.createObjectURL(new Blob([content],{type:"text/csv;charset=utf-8"}));const a=document.createElement("a");a.href=url;a.download="微信访问记录.csv";a.click();URL.revokeObjectURL(url)})});
+  </script>
+</body>
+</html>`;
+}
+
 function sendFile(res, filePath) {
   const ext = path.extname(filePath).toLowerCase();
   const types = {
@@ -1004,6 +1101,12 @@ const server = http.createServer(async (req, res) => {
       "Cache-Control": "no-store",
     });
     res.end();
+    return;
+  }
+
+  if (requestUrl.pathname === "/admin/wechat") {
+    if (!requireAdmin(req, res)) return;
+    sendHtml(res, 200, wechatAdminPage());
     return;
   }
 
