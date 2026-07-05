@@ -77,9 +77,9 @@ async function ensureWechatAuth() {
       data.auto &&
       data.inWechat &&
       !data.authenticated &&
-      sessionStorage.getItem("qg_wechat_auth_tried") !== "1"
+      sessionStorage.getItem("qg_wechat_auth_tried_v2") !== "1"
     ) {
-      sessionStorage.setItem("qg_wechat_auth_tried", "1");
+      sessionStorage.setItem("qg_wechat_auth_tried_v2", "1");
       location.href = `/auth/wechat?return=${encodeURIComponent(location.pathname + location.search)}`;
     }
   } catch {}
