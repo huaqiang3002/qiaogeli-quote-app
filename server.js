@@ -19,6 +19,7 @@ const publicDir = path.join(__dirname, "public");
 const dataDir = path.join(__dirname, "data");
 const visitsFile = path.join(dataDir, "visits.jsonl");
 let lastSnapshot = { ok: false, items: [], updatedAt: null, error: null };
+let officialTokenCache = { token: "", expiresAt: 0 };
 
 function cleanText(value) {
   return String(value || "")
@@ -710,6 +711,41 @@ async function fetchWechatJson(url) {
   return data;
 }
 
+async function getOfficialAccessToken() {
+  if (officialTokenCache.token && officialTokenCache.expiresAt > Date.now() + 60000) {
+    return officialTokenCache.token;
+  }
+  const tokenUrl = new URL("https://api.weixin.qq.com/cgi-bin/stable_token");
+  const response = await fetch(tokenUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      grant_type: "client_credential",
+      appid: WECHAT_APP_ID,
+      secret: WECHAT_APP_SECRET,
+      force_refresh: false,
+    }),
+  });
+  const data = await response.json();
+  if (!response.ok || data.errcode || !data.access_token) {
+    throw new Error(data.errmsg || `WeChat token HTTP ${response.status}`);
+  }
+  officialTokenCache = {
+    token: data.access_token,
+    expiresAt: Date.now() + Math.max(300, Number(data.expires_in || 7200) - 120) * 1000,
+  };
+  return officialTokenCache.token;
+}
+
+async function getOfficialWechatProfile(openid) {
+  const accessToken = await getOfficialAccessToken();
+  const profileUrl = new URL("https://api.weixin.qq.com/cgi-bin/user/info");
+  profileUrl.searchParams.set("access_token", accessToken);
+  profileUrl.searchParams.set("openid", openid);
+  profileUrl.searchParams.set("lang", "zh_CN");
+  return fetchWechatJson(profileUrl);
+}
+
 function redirect(res, location) {
   res.writeHead(302, { Location: location, "Cache-Control": "no-store" });
   res.end();
@@ -1119,6 +1155,30 @@ const server = http.createServer(async (req, res) => {
   if (requestUrl.pathname === "/api/admin/stats") {
     if (!requireAdmin(req, res)) return;
     sendJson(res, 200, adminStats());
+    return;
+  }
+
+  if (requestUrl.pathname === "/api/admin/wechat/profile") {
+    if (!requireAdmin(req, res)) return;
+    const openid = String(requestUrl.searchParams.get("openid") || "");
+    if (!/^o[A-Za-z0-9_-]{20,}$/.test(openid)) {
+      sendJson(res, 400, { ok: false, error: "Invalid openid" });
+      return;
+    }
+    try {
+      const profile = await getOfficialWechatProfile(openid);
+      sendJson(res, 200, {
+        ok: true,
+        subscribe: profile.subscribe || 0,
+        openid: profile.openid || openid,
+        nickname: profile.nickname || "",
+        headimgurl: profile.headimgurl || "",
+        unionid: profile.unionid || "",
+        subscribe_time: profile.subscribe_time || 0,
+      });
+    } catch (error) {
+      sendJson(res, 502, { ok: false, error: error.message });
+    }
     return;
   }
 
