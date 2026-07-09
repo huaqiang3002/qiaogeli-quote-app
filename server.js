@@ -92,8 +92,11 @@ function classifyQuoteBrand(group, name, displayGroup) {
 
 function markupForQuote(group, name) {
   const normalizedGroup = classifyQuoteGroup(group, name);
+  const text = quoteText(group, name);
   if (normalizedGroup === "华为") return 100;
   if (normalizedGroup === "电脑") return 100;
+  if (normalizedGroup === "配件" && /键盘|Keyboard/i.test(text)) return 100;
+  if (normalizedGroup === "配件" && /蓝牙耳机|AirPods|耳机/i.test(text)) return 50;
   if (normalizedGroup === "配件" || normalizedGroup === "手表") return 30;
   return PRICE_MARKUP;
 }
