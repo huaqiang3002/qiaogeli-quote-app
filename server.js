@@ -242,7 +242,7 @@ function cleanGroupName(value) {
 
 function isExcludedQuote(group, name) {
   const text = `${group} ${name}`;
-  return /苹果15\s*pro(?:max)?|15\s*Pro(?:\s*Max)?/i.test(text);
+  return /泡泡玛特|心底密码|坐坐派对|前方高能|单品系列|拉布布|LABUBU|苹果15\s*pro(?:max)?|15\s*Pro(?:\s*Max)?/i.test(text);
 }
 
 function cookieHeader(headers) {
