@@ -46,7 +46,7 @@ const APPLE_PHONE_BRAND_ORDER = [
   "苹果15",
 ];
 
-const TABLET_BRAND_ORDER = ["iPad", "iPadAir", "iPadPro"];
+const TABLET_BRAND_ORDER = ["iPad", "iPadmini", "iPadAir", "iPadPro"];
 
 function quoteText(group, name) {
   return `${group || ""} ${name || ""}`;
@@ -90,6 +90,7 @@ function classifyQuoteBrand(group, name, displayGroup) {
     if (suffix === 4) return `苹果${generation}promax`;
   }
   if (displayGroup === "平板") {
+    if (/mini/i.test(text)) return "iPadmini";
     if (/Pro/i.test(text)) return "iPadPro";
     if (/Air/i.test(text)) return "iPadAir";
     return "iPad";
