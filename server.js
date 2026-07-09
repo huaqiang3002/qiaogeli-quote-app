@@ -46,6 +46,8 @@ const APPLE_PHONE_BRAND_ORDER = [
   "苹果15",
 ];
 
+const TABLET_BRAND_ORDER = ["iPad", "iPadAir", "iPadPro"];
+
 function quoteText(group, name) {
   return `${group || ""} ${name || ""}`;
 }
@@ -59,16 +61,16 @@ function classifyQuoteGroup(group, name) {
   if (/华为|HUAWEI|Mate|Pura|nova|折叠屏/i.test(text) && !/大疆|DJI/i.test(text)) {
     return "华为";
   }
-  if (/MacBook|Mac\s*mini|Mac\s*Studio|Mac\s*Pro|iMac|苹果电脑|笔记本|电脑|主机|13\.6寸\s*air|15寸\s*air|14寸\s*pro|16寸\s*pro/i.test(text)) {
+  if (/MacBook|Mac\s*mini|Mac\s*Studio|Mac\s*Pro|iMac|苹果电脑|笔记本|电脑|主机|13\.6寸\s*air|15寸\s*air|14寸\s*pro|16寸\s*pro|26款13寸A18Pro|13寸A18Pro/i.test(text)) {
     return "电脑";
   }
-  if (/iPad|平板|\bpad\b|mini7|Air[678]\s*(11寸|13寸)|Pro\s*(11寸|13寸)|11代pad|13寸A18Pro/i.test(text)) {
+  if (/AirPods|耳机|充电|保护壳|保护膜|数据线|充电器|键盘|鼠标|触控板|Apple\s*Pencil|Pencil|手写笔|配件/i.test(text)) {
+    return "配件";
+  }
+  if (/iPad|平板|\bpad\b|mini7|Air[678]\s*(11寸|13寸)|Pro\s*(11寸|13寸)|11代pad/i.test(text)) {
     return "平板";
   }
   if (/Apple\s*Watch|Watch|手表|Ultra|UItra/i.test(text)) return "手表";
-  if (/AirPods|耳机|充电|保护壳|保护膜|数据线|充电器|键盘|鼠标|触控板|Apple\s*Pencil|Pencil|配件/i.test(text)) {
-    return "配件";
-  }
   if (/iPhone|苹果手机|苹果/i.test(text)) return "苹果手机";
   return cleanGroupName(group) || "其他";
 }
@@ -86,6 +88,11 @@ function classifyQuoteBrand(group, name, displayGroup) {
     if (suffix === 2) return `苹果${generation}e`;
     if (suffix === 3) return `苹果${generation}pro`;
     if (suffix === 4) return `苹果${generation}promax`;
+  }
+  if (displayGroup === "平板") {
+    if (/Pro/i.test(text)) return "iPadPro";
+    if (/Air/i.test(text)) return "iPadAir";
+    return "iPad";
   }
   return cleanGroupName(group) || displayGroup || "其他";
 }
@@ -127,15 +134,31 @@ function brandRank(item) {
     const index = APPLE_PHONE_BRAND_ORDER.indexOf(item.brand);
     return index >= 0 ? index : APPLE_PHONE_BRAND_ORDER.length;
   }
+  if (item.group === "平板") {
+    const index = TABLET_BRAND_ORDER.indexOf(item.brand);
+    return index >= 0 ? index : TABLET_BRAND_ORDER.length;
+  }
   return 0;
+}
+
+function priceRank(item) {
+  return typeof item.price === "number" ? item.price : Number.POSITIVE_INFINITY;
 }
 
 function sortQuotes(items) {
   return items.sort((a, b) => {
     const categoryDiff = categoryRank(a.group) - categoryRank(b.group);
     if (categoryDiff) return categoryDiff;
+    if (a.group === "电脑" && b.group === "电脑") {
+      const priceDiff = priceRank(a) - priceRank(b);
+      if (priceDiff) return priceDiff;
+    }
     const brandDiff = brandRank(a) - brandRank(b);
     if (brandDiff) return brandDiff;
+    if (a.group === "平板" && a.brand === b.brand) {
+      const priceDiff = priceRank(a) - priceRank(b);
+      if (priceDiff) return priceDiff;
+    }
     const modelDiff = quoteSortKey(a) - quoteSortKey(b);
     if (modelDiff) return modelDiff;
     return `${a.originalGroup || ""} ${a.name}`.localeCompare(`${b.originalGroup || ""} ${b.name}`, "zh-CN", {
@@ -245,7 +268,7 @@ function cleanGroupName(value) {
 
 function isExcludedQuote(group, name) {
   const text = `${group} ${name}`;
-  return /泡泡玛特|心底密码|坐坐派对|前方高能|单品系列|拉布布|LABUBU|苹果15\s*pro(?:max)?|15\s*Pro(?:\s*Max)?/i.test(text);
+  return /泡泡玛特|心底密码|坐坐派对|前方高能|单品系列|拉布布|LABUBU|苹果15\s*pro(?:max)?|15\s*Pro(?:\s*Max)?|22款pad\s*10代|24款Air6|2025款Air7\s*(?:11寸|13寸)|25款Air7\s*(?:11寸|13寸)/i.test(text);
 }
 
 function cookieHeader(headers) {
