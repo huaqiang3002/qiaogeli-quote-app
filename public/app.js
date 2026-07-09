@@ -87,6 +87,37 @@ async function ensureWechatAuth() {
   } catch {}
 }
 
+async function configureWechatShare() {
+  if (!/MicroMessenger/i.test(navigator.userAgent) || !window.wx) return;
+  const shareData = {
+    title: "西安乔戈里科技有限公司报价单",
+    desc: "苹果手机、平板、电脑、手表、配件实时报价。",
+    link: "https://quote.qiaogeli.cn/?share=wechat-v2",
+    imgUrl: "https://quote.qiaogeli.cn/qiaogeli-share-v2.png",
+  };
+  try {
+    const response = await fetch(`/api/wechat/js-config?url=${encodeURIComponent(location.href.split("#")[0])}`, {
+      cache: "no-store",
+    });
+    const config = await response.json();
+    if (!config.configured) return;
+    wx.config({
+      debug: false,
+      appId: config.appId,
+      timestamp: config.timestamp,
+      nonceStr: config.nonceStr,
+      signature: config.signature,
+      jsApiList: config.jsApiList,
+    });
+    wx.ready(() => {
+      if (wx.updateAppMessageShareData) wx.updateAppMessageShareData(shareData);
+      if (wx.updateTimelineShareData) wx.updateTimelineShareData(shareData);
+      if (wx.onMenuShareAppMessage) wx.onMenuShareAppMessage(shareData);
+      if (wx.onMenuShareTimeline) wx.onMenuShareTimeline(shareData);
+    });
+  } catch {}
+}
+
 function getGroups(items) {
   const groups = [];
   const seen = new Set();
@@ -284,6 +315,7 @@ els.refreshButton.addEventListener("click", refreshQuotes);
 els.exportButton.addEventListener("click", exportCsv);
 
 ensureWechatAuth();
+configureWechatShare();
 resetTimer();
 trackEvent({ type: "pageview" });
 refreshQuotes();

@@ -1,6 +1,7 @@
 const http = require("node:http");
 const fs = require("node:fs");
 const path = require("node:path");
+const crypto = require("node:crypto");
 const { URL } = require("node:url");
 
 const PORT = Number(process.env.PORT || 4173);
@@ -21,6 +22,7 @@ const visitsFile = path.join(dataDir, "visits.jsonl");
 const quotesCacheFile = path.join(dataDir, "quotes-cache.json");
 let lastSnapshot = { ok: false, items: [], updatedAt: null, error: null };
 let officialTokenCache = { token: "", expiresAt: 0 };
+let jsapiTicketCache = { ticket: "", expiresAt: 0 };
 
 const CATEGORY_ORDER = [
   "苹果手机",
@@ -967,6 +969,46 @@ async function getOfficialAccessToken() {
   return officialTokenCache.token;
 }
 
+async function getJsapiTicket() {
+  if (jsapiTicketCache.ticket && jsapiTicketCache.expiresAt > Date.now() + 60000) {
+    return jsapiTicketCache.ticket;
+  }
+  const accessToken = await getOfficialAccessToken();
+  const ticketUrl = new URL("https://api.weixin.qq.com/cgi-bin/ticket/getticket");
+  ticketUrl.searchParams.set("access_token", accessToken);
+  ticketUrl.searchParams.set("type", "jsapi");
+  const response = await fetch(ticketUrl);
+  const data = await response.json();
+  if (!response.ok || data.errcode || !data.ticket) {
+    throw new Error(data.errmsg || `WeChat ticket HTTP ${response.status}`);
+  }
+  jsapiTicketCache = {
+    ticket: data.ticket,
+    expiresAt: Date.now() + Math.max(300, Number(data.expires_in || 7200) - 120) * 1000,
+  };
+  return jsapiTicketCache.ticket;
+}
+
+async function wechatJsConfig(pageUrl) {
+  if (!WECHAT_APP_ID || !WECHAT_APP_SECRET) {
+    return { configured: false };
+  }
+  const ticket = await getJsapiTicket();
+  const nonceStr = crypto.randomBytes(8).toString("hex");
+  const timestamp = Math.floor(Date.now() / 1000);
+  const url = String(pageUrl || SITE_ORIGIN).split("#")[0];
+  const raw = `jsapi_ticket=${ticket}&noncestr=${nonceStr}&timestamp=${timestamp}&url=${url}`;
+  const signature = crypto.createHash("sha1").update(raw).digest("hex");
+  return {
+    configured: true,
+    appId: WECHAT_APP_ID,
+    timestamp,
+    nonceStr,
+    signature,
+    jsApiList: ["updateAppMessageShareData", "updateTimelineShareData", "onMenuShareAppMessage", "onMenuShareTimeline"],
+  };
+}
+
 async function getOfficialWechatProfile(openid) {
   const accessToken = await getOfficialAccessToken();
   const profileUrl = new URL("https://api.weixin.qq.com/cgi-bin/user/info");
@@ -1347,6 +1389,16 @@ const server = http.createServer(async (req, res) => {
 
   if (requestUrl.pathname === "/api/auth/status") {
     sendJson(res, 200, wechatAuthStatus(req));
+    return;
+  }
+
+  if (requestUrl.pathname === "/api/wechat/js-config") {
+    try {
+      const pageUrl = requestUrl.searchParams.get("url") || `${SITE_ORIGIN}/`;
+      sendJson(res, 200, await wechatJsConfig(pageUrl));
+    } catch (error) {
+      sendJson(res, 500, { configured: false, error: String(error.message || error) });
+    }
     return;
   }
 
