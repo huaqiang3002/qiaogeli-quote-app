@@ -734,6 +734,17 @@ function adminStats() {
     devices: topCounts(records, "device"),
     categories: topCounts(records.filter((record) => record.type === "category"), "category"),
     keywords: topCounts(records.filter((record) => record.type === "search"), "keyword"),
+    shareDebug: records
+      .filter((record) => record.type === "wechat_share")
+      .slice(-30)
+      .reverse()
+      .map((record) => ({
+        ts: record.ts,
+        status: record.category,
+        detail: record.keyword,
+        ip: record.ip,
+        ua: record.ua,
+      })),
     visitors: buildVisitors(records),
     recent: records
       .slice(-120)

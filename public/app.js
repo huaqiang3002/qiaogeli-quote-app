@@ -70,6 +70,14 @@ function trackEvent(event) {
   }).catch(() => {});
 }
 
+function trackShareStatus(status, detail) {
+  trackEvent({
+    type: "wechat_share",
+    category: status,
+    keyword: String(detail || "").slice(0, 120),
+  });
+}
+
 async function ensureWechatAuth() {
   try {
     const response = await fetch("/api/auth/status", { cache: "no-store" });
@@ -88,11 +96,18 @@ async function ensureWechatAuth() {
 }
 
 async function configureWechatShare() {
-  if (!/MicroMessenger/i.test(navigator.userAgent) || !window.wx) return;
+  if (!/MicroMessenger/i.test(navigator.userAgent)) {
+    trackShareStatus("not_wechat", navigator.userAgent);
+    return;
+  }
+  if (!window.wx) {
+    trackShareStatus("wx_sdk_missing", "");
+    return;
+  }
   const shareData = {
     title: "西安乔戈里科技有限公司报价单",
     desc: "苹果手机、平板、电脑、手表、配件实时报价。",
-    link: "https://quote.qiaogeli.cn/?share=wechat-v2",
+    link: `${location.origin}${location.pathname}?share=wechat-v3`,
     imgUrl: "https://quote.qiaogeli.cn/qiaogeli-share-v2.png",
   };
   try {
@@ -100,7 +115,10 @@ async function configureWechatShare() {
       cache: "no-store",
     });
     const config = await response.json();
-    if (!config.configured) return;
+    if (!config.configured) {
+      trackShareStatus("config_missing", config.error || "");
+      return;
+    }
     wx.config({
       debug: false,
       appId: config.appId,
@@ -114,8 +132,14 @@ async function configureWechatShare() {
       if (wx.updateTimelineShareData) wx.updateTimelineShareData(shareData);
       if (wx.onMenuShareAppMessage) wx.onMenuShareAppMessage(shareData);
       if (wx.onMenuShareTimeline) wx.onMenuShareTimeline(shareData);
+      trackShareStatus("ready", shareData.link);
     });
-  } catch {}
+    wx.error((error) => {
+      trackShareStatus("error", JSON.stringify(error));
+    });
+  } catch (error) {
+    trackShareStatus("exception", error.message || error);
+  }
 }
 
 function getGroups(items) {
