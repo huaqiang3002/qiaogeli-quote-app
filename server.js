@@ -55,6 +55,27 @@ const TABLET_BRAND_ORDER = [
   "25款Pro 13寸 M5芯片",
 ];
 
+const ULTRA3_CODE_ORDER = [
+  "WJ4",
+  "0M4",
+  "WL4",
+  "WN4",
+  "WQ4",
+  "0U4",
+  "0W4",
+  "1A4",
+  "WT4",
+  "WV4",
+  "1E4",
+  "1L4",
+  "WX4",
+  "0A4",
+  "0G4",
+  "1P4",
+  "1R4",
+  "1U4",
+];
+
 function quoteText(group, name) {
   return `${group || ""} ${name || ""}`;
 }
@@ -150,6 +171,16 @@ function priceRank(item) {
   return typeof item.price === "number" ? item.price : Number.POSITIVE_INFINITY;
 }
 
+function ultra3Rank(item) {
+  const code = String(item.name || "").match(/\(([A-Z0-9]+)\)\s*$/i)?.[1]?.toUpperCase();
+  const index = ULTRA3_CODE_ORDER.indexOf(code);
+  return index >= 0 ? index : ULTRA3_CODE_ORDER.length;
+}
+
+function isUltra3(item) {
+  return /U(?:l|I)?tra3/i.test(String(item.name || ""));
+}
+
 function sortQuotes(items) {
   return items.sort((a, b) => {
     const categoryDiff = categoryRank(a.group) - categoryRank(b.group);
@@ -157,6 +188,15 @@ function sortQuotes(items) {
     if (a.group === "电脑" && b.group === "电脑") {
       const priceDiff = priceRank(a) - priceRank(b);
       if (priceDiff) return priceDiff;
+    }
+    if (
+      a.group === "手表" &&
+      b.group === "手表" &&
+      isUltra3(a) &&
+      isUltra3(b)
+    ) {
+      const ultraDiff = ultra3Rank(a) - ultra3Rank(b);
+      if (ultraDiff) return ultraDiff;
     }
     const brandDiff = brandRank(a) - brandRank(b);
     if (brandDiff) return brandDiff;
