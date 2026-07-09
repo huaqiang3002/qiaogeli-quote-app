@@ -206,6 +206,20 @@ button:hover {
   padding-bottom: 2px;
 }
 
+.filter-row {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.filter-label {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
 .category-chip {
   flex: 0 0 auto;
   height: 34px;
@@ -358,6 +372,10 @@ tr.changed {
 
   .category-list {
     padding-bottom: 4px;
+  }
+
+  .filter-row {
+    grid-template-columns: 36px minmax(0, 1fr);
   }
 
   .category-chip {

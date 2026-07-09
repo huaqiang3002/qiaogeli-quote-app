@@ -3,6 +3,7 @@ const state = {
   visibleItems: [],
   previousPrices: new Map(),
   selectedGroup: "全部",
+  selectedBrand: "全部",
   timer: null,
   busy: false,
   updatedAt: null,
@@ -15,6 +16,7 @@ const els = {
   exportButton: document.querySelector("#exportButton"),
   categorySelect: document.querySelector("#categorySelect"),
   categoryList: document.querySelector("#categoryList"),
+  brandList: document.querySelector("#brandList"),
   categoryHint: document.querySelector("#categoryHint"),
   quoteBody: document.querySelector("#quoteBody"),
   statusDot: document.querySelector("#statusDot"),
@@ -97,12 +99,33 @@ function getGroups(items) {
   return groups;
 }
 
+function getBrands(items) {
+  const brands = [];
+  const seen = new Set();
+  for (const item of items) {
+    if (state.selectedGroup !== "全部" && item.group !== state.selectedGroup) continue;
+    const brand = item.brand || item.originalGroup || item.group;
+    if (!seen.has(brand)) {
+      seen.add(brand);
+      brands.push(brand);
+    }
+  }
+  return brands;
+}
+
 function renderCategories(items) {
   const groups = getGroups(items);
-  els.categoryHint.textContent = "按手机、平板、电脑、配件查看";
+  const brands = getBrands(items);
+  els.categoryHint.textContent = "按分类和品牌型号查看";
 
   const currentGroupExists = state.selectedGroup === "全部" || groups.includes(state.selectedGroup);
-  if (!currentGroupExists) state.selectedGroup = "全部";
+  if (!currentGroupExists) {
+    state.selectedGroup = "全部";
+    state.selectedBrand = "全部";
+  }
+
+  const currentBrandExists = state.selectedBrand === "全部" || brands.includes(state.selectedBrand);
+  if (!currentBrandExists) state.selectedBrand = "全部";
 
   els.categorySelect.innerHTML = [
     `<option value="全部">全部</option>`,
@@ -118,18 +141,30 @@ function renderCategories(items) {
     ),
   ];
   els.categoryList.innerHTML = buttons.join("");
+
+  const brandButtons = [
+    `<button type="button" class="category-chip ${state.selectedBrand === "全部" ? "active" : ""}" data-brand="全部">全部</button>`,
+    ...brands.map(
+      (brand) =>
+        `<button type="button" class="category-chip ${state.selectedBrand === brand ? "active" : ""}" data-brand="${escapeHtml(brand)}">${escapeHtml(brand)}</button>`
+    ),
+  ];
+  els.brandList.innerHTML = brandButtons.join("");
 }
 
 function applyFilters() {
   const keyword = els.keywordInput.value.trim().toLowerCase();
   state.visibleItems = state.allItems.filter((item) => {
     const matchGroup = state.selectedGroup === "全部" || item.group === state.selectedGroup;
+    const itemBrand = item.brand || item.originalGroup || item.group;
+    const matchBrand = state.selectedBrand === "全部" || itemBrand === state.selectedBrand;
     const matchKeyword =
       !keyword ||
       item.name.toLowerCase().includes(keyword) ||
       item.group.toLowerCase().includes(keyword) ||
+      itemBrand.toLowerCase().includes(keyword) ||
       item.priceText.toLowerCase().includes(keyword);
-    return matchGroup && matchKeyword;
+    return matchGroup && matchBrand && matchKeyword;
   });
 
   renderSummary(state.visibleItems, state.updatedAt);
@@ -224,12 +259,22 @@ els.categoryList.addEventListener("click", (event) => {
   const button = event.target.closest(".category-chip");
   if (!button) return;
   state.selectedGroup = button.dataset.group;
+  state.selectedBrand = "全部";
   renderCategories(state.allItems);
   applyFilters();
   trackEvent({ type: "category", category: state.selectedGroup });
 });
+els.brandList.addEventListener("click", (event) => {
+  const button = event.target.closest(".category-chip");
+  if (!button) return;
+  state.selectedBrand = button.dataset.brand;
+  renderCategories(state.allItems);
+  applyFilters();
+  trackEvent({ type: "category", category: `${state.selectedGroup}/${state.selectedBrand}` });
+});
 els.categorySelect.addEventListener("change", () => {
   state.selectedGroup = els.categorySelect.value;
+  state.selectedBrand = "全部";
   renderCategories(state.allItems);
   applyFilters();
   trackEvent({ type: "category", category: state.selectedGroup });

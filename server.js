@@ -24,10 +24,26 @@ let officialTokenCache = { token: "", expiresAt: 0 };
 
 const CATEGORY_ORDER = [
   "苹果手机",
-  "苹果平板",
-  "苹果电脑",
-  "苹果配件",
-  "华为手机",
+  "平板",
+  "电脑",
+  "手表",
+  "配件",
+  "大疆",
+  "华为",
+  "泡泡玛特",
+];
+
+const APPLE_PHONE_BRAND_ORDER = [
+  "苹果17",
+  "苹果17Air",
+  "苹果17e",
+  "苹果17pro",
+  "苹果17promax",
+  "苹果16",
+  "苹果16e",
+  "苹果16pro",
+  "苹果16promax",
+  "苹果15",
 ];
 
 function quoteText(group, name) {
@@ -36,28 +52,49 @@ function quoteText(group, name) {
 
 function classifyQuoteGroup(group, name) {
   const text = quoteText(group, name);
-  if (/华为|HUAWEI|Mate|Pura|nova|折叠屏/i.test(text) && !/大疆|DJI/i.test(text)) {
-    return "华为手机";
+  if (/泡泡玛特|心底密码|坐坐派对|前方高能|单品系列|拉布布|LABUBU/i.test(text)) {
+    return "泡泡玛特";
   }
-  if (/MacBook|Mac\s*mini|Mac\s*Studio|Mac\s*Pro|iMac|苹果电脑|笔记本|电脑|13\.6寸\s*air|15寸\s*air|14寸\s*pro|16寸\s*pro/i.test(text)) {
-    return "苹果电脑";
+  if (/大疆|DJI|Pocket|Osmo/i.test(text)) return "大疆";
+  if (/华为|HUAWEI|Mate|Pura|nova|折叠屏/i.test(text) && !/大疆|DJI/i.test(text)) {
+    return "华为";
+  }
+  if (/MacBook|Mac\s*mini|Mac\s*Studio|Mac\s*Pro|iMac|苹果电脑|笔记本|电脑|主机|13\.6寸\s*air|15寸\s*air|14寸\s*pro|16寸\s*pro/i.test(text)) {
+    return "电脑";
   }
   if (/iPad|平板|\bpad\b|mini7|Air[678]\s*(11寸|13寸)|Pro\s*(11寸|13寸)|11代pad|13寸A18Pro/i.test(text)) {
-    return "苹果平板";
+    return "平板";
   }
-  if (/AirPods|Apple\s*Watch|Watch|耳机|手表|充电|保护壳|保护膜|数据线|充电器|键盘|鼠标|触控板|Apple\s*Pencil|Pencil|配件/i.test(text)) {
-    return "苹果配件";
+  if (/Apple\s*Watch|Watch|手表|Ultra|UItra/i.test(text)) return "手表";
+  if (/AirPods|耳机|充电|保护壳|保护膜|数据线|充电器|键盘|鼠标|触控板|Apple\s*Pencil|Pencil|配件/i.test(text)) {
+    return "配件";
   }
-  if (/Ultra|UItra/i.test(text)) return "苹果配件";
   if (/iPhone|苹果手机|苹果/i.test(text)) return "苹果手机";
   return cleanGroupName(group) || "其他";
 }
 
+function classifyQuoteBrand(group, name, displayGroup) {
+  const text = quoteText(group, name);
+  if (displayGroup === "苹果手机") {
+    const rank = applePhoneRank(text);
+    const index = Math.floor(rank / 10);
+    const suffix = rank % 10;
+    const generation = 30 - index;
+    if (!Number.isFinite(generation) || generation <= 0) return cleanGroupName(group) || "苹果手机";
+    if (suffix === 0) return `苹果${generation}`;
+    if (suffix === 1) return `苹果${generation}Air`;
+    if (suffix === 2) return `苹果${generation}e`;
+    if (suffix === 3) return `苹果${generation}pro`;
+    if (suffix === 4) return `苹果${generation}promax`;
+  }
+  return cleanGroupName(group) || displayGroup || "其他";
+}
+
 function markupForQuote(group, name) {
   const normalizedGroup = classifyQuoteGroup(group, name);
-  if (normalizedGroup === "华为手机") return 100;
-  if (normalizedGroup === "苹果电脑") return 100;
-  if (normalizedGroup === "苹果配件") return 30;
+  if (normalizedGroup === "华为") return 100;
+  if (normalizedGroup === "电脑") return 100;
+  if (normalizedGroup === "配件" || normalizedGroup === "手表") return 30;
   return PRICE_MARKUP;
 }
 
@@ -68,12 +105,12 @@ function categoryRank(group) {
 
 function applePhoneRank(text) {
   const value = String(text || "");
-  const model = value.match(/(?:iPhone\s*)?(\d{2})(?:\s*(Air|Pro\s*Max|Pro|Plus|MAX|Max|e))?/i);
+  const model = value.match(/(?:iPhone\s*)?(\d{2})(?:\s*(Pro\s*Max|promax|Air|e|Pro|Plus|MAX|Max))?/i);
   if (!model) return 9999;
 
   const generation = Number(model[1]);
   const suffix = String(model[2] || "").replace(/\s+/g, "").toLowerCase();
-  const suffixRank = suffix === "" ? 0 : suffix === "air" ? 1 : suffix === "pro" ? 2 : suffix === "promax" || suffix === "max" ? 3 : suffix === "e" ? 4 : 5;
+  const suffixRank = suffix === "" ? 0 : suffix === "air" ? 1 : suffix === "e" ? 2 : suffix === "pro" ? 3 : suffix === "promax" || suffix === "max" ? 4 : 5;
   return (30 - generation) * 10 + suffixRank;
 }
 
@@ -82,10 +119,20 @@ function quoteSortKey(item) {
   return 0;
 }
 
+function brandRank(item) {
+  if (item.group === "苹果手机") {
+    const index = APPLE_PHONE_BRAND_ORDER.indexOf(item.brand);
+    return index >= 0 ? index : APPLE_PHONE_BRAND_ORDER.length;
+  }
+  return 0;
+}
+
 function sortQuotes(items) {
   return items.sort((a, b) => {
     const categoryDiff = categoryRank(a.group) - categoryRank(b.group);
     if (categoryDiff) return categoryDiff;
+    const brandDiff = brandRank(a) - brandRank(b);
+    if (brandDiff) return brandDiff;
     const modelDiff = quoteSortKey(a) - quoteSortKey(b);
     if (modelDiff) return modelDiff;
     return `${a.originalGroup || ""} ${a.name}`.localeCompare(`${b.originalGroup || ""} ${b.name}`, "zh-CN", {
@@ -168,11 +215,13 @@ function parseQuotes(html) {
 
     const numericPrice = Number(priceText.replace(/[^\d.-]/g, ""));
     const displayGroup = classifyQuoteGroup(currentGroup, name);
+    const brand = classifyQuoteBrand(currentGroup, name, displayGroup);
     const markup = markupForQuote(currentGroup, name);
     const displayPrice = Number.isFinite(numericPrice) ? numericPrice + markup : null;
     items.push({
-      id: `${displayGroup}|${currentGroup}|${name}`,
+      id: `${displayGroup}|${brand}|${currentGroup}|${name}`,
       group: displayGroup,
+      brand,
       originalGroup: currentGroup,
       name,
       originalPrice: Number.isFinite(numericPrice) ? numericPrice : null,
@@ -193,7 +242,7 @@ function cleanGroupName(value) {
 
 function isExcludedQuote(group, name) {
   const text = `${group} ${name}`;
-  return /泡泡玛特|心底密码|坐坐派对|前方高能|单品系列|拉布布|LABUBU/i.test(text);
+  return /苹果15\s*pro(?:max)?|15\s*Pro(?:\s*Max)?/i.test(text);
 }
 
 function cookieHeader(headers) {
