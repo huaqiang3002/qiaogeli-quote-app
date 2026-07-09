@@ -18,6 +18,7 @@ const WECHAT_AUTH_AUTO = process.env.WECHAT_AUTH_AUTO !== "0";
 const publicDir = path.join(__dirname, "public");
 const dataDir = path.join(__dirname, "data");
 const visitsFile = path.join(dataDir, "visits.jsonl");
+const quotesCacheFile = path.join(dataDir, "quotes-cache.json");
 let lastSnapshot = { ok: false, items: [], updatedAt: null, error: null };
 let officialTokenCache = { token: "", expiresAt: 0 };
 
@@ -92,6 +93,25 @@ function sortQuotes(items) {
     });
   });
 }
+
+function readQuoteCache() {
+  try {
+    const snapshot = JSON.parse(fs.readFileSync(quotesCacheFile, "utf8"));
+    if (snapshot && Array.isArray(snapshot.items) && snapshot.items.length) {
+      return { ...snapshot, ok: true, items: sortQuotes(snapshot.items) };
+    }
+  } catch {}
+  return null;
+}
+
+function writeQuoteCache(snapshot) {
+  if (!snapshot || !Array.isArray(snapshot.items) || !snapshot.items.length) return;
+  fs.mkdirSync(dataDir, { recursive: true });
+  fs.writeFileSync(quotesCacheFile, JSON.stringify(snapshot, null, 2));
+}
+
+const cachedSnapshot = readQuoteCache();
+if (cachedSnapshot) lastSnapshot = cachedSnapshot;
 
 function cleanText(value) {
   return String(value || "")
@@ -249,6 +269,19 @@ async function fetchQuotes() {
     items.push(...nextParsed.items);
   }
 
+  if (!items.length) {
+    const cached = readQuoteCache() || (lastSnapshot.items.length ? lastSnapshot : null);
+    if (cached) {
+      lastSnapshot = {
+        ...cached,
+        ok: true,
+        sourceUrl: url.toString(),
+        error: "源站暂时返回空列表，已显示最近一次有效报价",
+      };
+      return lastSnapshot;
+    }
+  }
+
   const now = new Date().toISOString();
   lastSnapshot = {
     ok: true,
@@ -259,6 +292,7 @@ async function fetchQuotes() {
     items: sortQuotes(items),
     error: null,
   };
+  writeQuoteCache(lastSnapshot);
   return lastSnapshot;
 }
 
