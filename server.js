@@ -46,7 +46,14 @@ const APPLE_PHONE_BRAND_ORDER = [
   "苹果15",
 ];
 
-const TABLET_BRAND_ORDER = ["iPad", "iPadmini", "iPadAir", "iPadPro"];
+const TABLET_BRAND_ORDER = [
+  "2025款11代pad",
+  "24款mini7",
+  "2026款Air8 11寸 M4芯片",
+  "2026款Air8 13寸 M4芯片",
+  "25款Pro 11寸 M5芯片",
+  "25款Pro 13寸 M5芯片",
+];
 
 function quoteText(group, name) {
   return `${group || ""} ${name || ""}`;
@@ -90,10 +97,7 @@ function classifyQuoteBrand(group, name, displayGroup) {
     if (suffix === 4) return `苹果${generation}promax`;
   }
   if (displayGroup === "平板") {
-    if (/mini/i.test(text)) return "iPadmini";
-    if (/Pro/i.test(text)) return "iPadPro";
-    if (/Air/i.test(text)) return "iPadAir";
-    return "iPad";
+    return cleanGroupName(group) || "平板";
   }
   return cleanGroupName(group) || displayGroup || "其他";
 }
