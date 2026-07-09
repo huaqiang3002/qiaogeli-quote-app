@@ -191,6 +191,12 @@ function sortQuotes(items) {
       const priceDiff = priceRank(a) - priceRank(b);
       if (priceDiff) return priceDiff;
     }
+    const brandDiff = brandRank(a) - brandRank(b);
+    if (brandDiff) return brandDiff;
+    if (a.brand && b.brand && a.brand === b.brand) {
+      const priceDiff = priceRank(a) - priceRank(b);
+      if (priceDiff) return priceDiff;
+    }
     if (
       a.group === "手表" &&
       b.group === "手表" &&
@@ -199,12 +205,6 @@ function sortQuotes(items) {
     ) {
       const ultraDiff = ultra3Rank(a) - ultra3Rank(b);
       if (ultraDiff) return ultraDiff;
-    }
-    const brandDiff = brandRank(a) - brandRank(b);
-    if (brandDiff) return brandDiff;
-    if (a.group === "平板" && a.brand === b.brand) {
-      const priceDiff = priceRank(a) - priceRank(b);
-      if (priceDiff) return priceDiff;
     }
     const modelDiff = quoteSortKey(a) - quoteSortKey(b);
     if (modelDiff) return modelDiff;
