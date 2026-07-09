@@ -21,6 +21,78 @@ const visitsFile = path.join(dataDir, "visits.jsonl");
 let lastSnapshot = { ok: false, items: [], updatedAt: null, error: null };
 let officialTokenCache = { token: "", expiresAt: 0 };
 
+const CATEGORY_ORDER = [
+  "苹果手机",
+  "苹果平板",
+  "苹果电脑",
+  "苹果配件",
+  "华为手机",
+];
+
+function quoteText(group, name) {
+  return `${group || ""} ${name || ""}`;
+}
+
+function classifyQuoteGroup(group, name) {
+  const text = quoteText(group, name);
+  if (/华为|HUAWEI|Mate|Pura|nova|折叠屏/i.test(text) && !/大疆|DJI/i.test(text)) {
+    return "华为手机";
+  }
+  if (/MacBook|Mac\s*mini|Mac\s*Studio|Mac\s*Pro|iMac|苹果电脑|笔记本|电脑|13\.6寸\s*air|15寸\s*air|14寸\s*pro|16寸\s*pro/i.test(text)) {
+    return "苹果电脑";
+  }
+  if (/iPad|平板|\bpad\b|mini7|Air[678]\s*(11寸|13寸)|Pro\s*(11寸|13寸)|11代pad|13寸A18Pro/i.test(text)) {
+    return "苹果平板";
+  }
+  if (/AirPods|Apple\s*Watch|Watch|耳机|手表|充电|保护壳|保护膜|数据线|充电器|键盘|鼠标|触控板|Apple\s*Pencil|Pencil|配件/i.test(text)) {
+    return "苹果配件";
+  }
+  if (/Ultra|UItra/i.test(text)) return "苹果配件";
+  if (/iPhone|苹果手机|苹果/i.test(text)) return "苹果手机";
+  return cleanGroupName(group) || "其他";
+}
+
+function markupForQuote(group, name) {
+  const normalizedGroup = classifyQuoteGroup(group, name);
+  if (normalizedGroup === "华为手机") return 100;
+  if (normalizedGroup === "苹果电脑") return 100;
+  if (normalizedGroup === "苹果配件") return 30;
+  return PRICE_MARKUP;
+}
+
+function categoryRank(group) {
+  const index = CATEGORY_ORDER.indexOf(group);
+  return index >= 0 ? index : CATEGORY_ORDER.length;
+}
+
+function applePhoneRank(text) {
+  const value = String(text || "");
+  const model = value.match(/(?:iPhone\s*)?(\d{2})(?:\s*(Air|Pro\s*Max|Pro|Plus|MAX|Max|e))?/i);
+  if (!model) return 9999;
+
+  const generation = Number(model[1]);
+  const suffix = String(model[2] || "").replace(/\s+/g, "").toLowerCase();
+  const suffixRank = suffix === "" ? 0 : suffix === "air" ? 1 : suffix === "pro" ? 2 : suffix === "promax" || suffix === "max" ? 3 : suffix === "e" ? 4 : 5;
+  return (30 - generation) * 10 + suffixRank;
+}
+
+function quoteSortKey(item) {
+  if (item.group === "苹果手机") return applePhoneRank(item.name);
+  return 0;
+}
+
+function sortQuotes(items) {
+  return items.sort((a, b) => {
+    const categoryDiff = categoryRank(a.group) - categoryRank(b.group);
+    if (categoryDiff) return categoryDiff;
+    const modelDiff = quoteSortKey(a) - quoteSortKey(b);
+    if (modelDiff) return modelDiff;
+    return `${a.originalGroup || ""} ${a.name}`.localeCompare(`${b.originalGroup || ""} ${b.name}`, "zh-CN", {
+      numeric: true,
+    });
+  });
+}
+
 function cleanText(value) {
   return String(value || "")
     .replace(/<script[\s\S]*?<\/script>/gi, "")
@@ -75,18 +147,22 @@ function parseQuotes(html) {
     if (isExcludedQuote(currentGroup, name)) continue;
 
     const numericPrice = Number(priceText.replace(/[^\d.-]/g, ""));
-    const displayPrice = Number.isFinite(numericPrice) ? numericPrice + PRICE_MARKUP : null;
+    const displayGroup = classifyQuoteGroup(currentGroup, name);
+    const markup = markupForQuote(currentGroup, name);
+    const displayPrice = Number.isFinite(numericPrice) ? numericPrice + markup : null;
     items.push({
-      id: `${currentGroup}|${name}`,
-      group: currentGroup,
+      id: `${displayGroup}|${currentGroup}|${name}`,
+      group: displayGroup,
+      originalGroup: currentGroup,
       name,
       originalPrice: Number.isFinite(numericPrice) ? numericPrice : null,
+      markup,
       price: displayPrice,
       priceText: displayPrice === null ? priceText : String(displayPrice),
     });
   }
 
-  return { sourceTitle, items, pageCount };
+  return { sourceTitle, items: sortQuotes(items), pageCount };
 }
 
 function cleanGroupName(value) {
@@ -180,7 +256,7 @@ async function fetchQuotes() {
     title: parsed.sourceTitle,
     count: items.length,
     updatedAt: now,
-    items,
+    items: sortQuotes(items),
     error: null,
   };
   return lastSnapshot;

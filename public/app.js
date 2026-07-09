@@ -86,31 +86,34 @@ async function ensureWechatAuth() {
 }
 
 function getGroups(items) {
-  const counts = new Map();
+  const groups = [];
+  const seen = new Set();
   for (const item of items) {
-    counts.set(item.group, (counts.get(item.group) || 0) + 1);
+    if (!seen.has(item.group)) {
+      seen.add(item.group);
+      groups.push(item.group);
+    }
   }
-  return [...counts.entries()].sort((a, b) => a[0].localeCompare(b[0], "zh-CN"));
+  return groups;
 }
 
 function renderCategories(items) {
   const groups = getGroups(items);
-  const total = items.length;
-  els.categoryHint.textContent = `${groups.length} 个分类，${total} 条报价`;
+  els.categoryHint.textContent = "按手机、平板、电脑、配件查看";
 
-  const currentGroupExists = state.selectedGroup === "全部" || groups.some(([group]) => group === state.selectedGroup);
+  const currentGroupExists = state.selectedGroup === "全部" || groups.includes(state.selectedGroup);
   if (!currentGroupExists) state.selectedGroup = "全部";
 
   els.categorySelect.innerHTML = [
     `<option value="全部">全部</option>`,
-    ...groups.map(([group]) => `<option value="${escapeHtml(group)}">${escapeHtml(group)}</option>`),
+    ...groups.map((group) => `<option value="${escapeHtml(group)}">${escapeHtml(group)}</option>`),
   ].join("");
   els.categorySelect.value = state.selectedGroup;
 
   const buttons = [
     `<button type="button" class="category-chip ${state.selectedGroup === "全部" ? "active" : ""}" data-group="全部">全部</button>`,
     ...groups.map(
-      ([group]) =>
+      (group) =>
         `<button type="button" class="category-chip ${state.selectedGroup === group ? "active" : ""}" data-group="${escapeHtml(group)}">${escapeHtml(group)}</button>`
     ),
   ];
