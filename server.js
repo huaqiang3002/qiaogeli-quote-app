@@ -173,12 +173,34 @@ function priceRank(item) {
   return typeof item.price === "number" ? item.price : Number.POSITIVE_INFINITY;
 }
 
+const PHONE_COLOR_ORDER = [
+  /黑色|曜石黑|黑/,
+  /白色|云锦白|雪域白|白/,
+  /青雾蓝|蓝色|天蓝|靛蓝色|蓝/,
+  /薰衣紫|紫色|紫/,
+  /鼠尾绿|绿色|绿/,
+  /桃粉色|粉色|粉/,
+  /银色|银/,
+  /星光/,
+  /深空灰|灰/,
+  /午夜/,
+  /原色/,
+  /寰宇红|赤兔红|红/,
+  /柑橘黄|黄/,
+];
+
+function storageRank(item) {
+  const text = String(item.name || "");
+  const match = text.match(/(\d+(?:\.\d+)?)\s*(T|TB|G|GB)/i);
+  if (!match) return Number.POSITIVE_INFINITY;
+  const value = Number(match[1]);
+  return match[2].toUpperCase().startsWith("T") ? value * 1024 : value;
+}
+
 function colorRank(item) {
   const text = String(item.name || "");
-  const colorMatch = text.match(
-    /(白色|黑色|青雾蓝|鼠尾绿|薰衣紫|深空灰|星光|银色|蓝色|蓝|粉色|粉|紫色|紫|午夜|天蓝|原色|曜石黑|云锦白|寰宇红|赤兔红|雪域白|靛蓝色|柑橘黄|桃粉色)/
-  );
-  return colorMatch ? colorMatch[1] : "";
+  const index = PHONE_COLOR_ORDER.findIndex((pattern) => pattern.test(text));
+  return index >= 0 ? index : PHONE_COLOR_ORDER.length;
 }
 
 function ultra3Rank(item) {
@@ -202,12 +224,14 @@ function sortQuotes(items) {
     const brandDiff = brandRank(a) - brandRank(b);
     if (brandDiff) return brandDiff;
     if (a.brand && b.brand && a.brand === b.brand) {
-      const priceDiff = priceRank(a) - priceRank(b);
-      if (priceDiff) return priceDiff;
       if (a.group === "苹果手机") {
-        const colorDiff = colorRank(a).localeCompare(colorRank(b), "zh-CN");
+        const storageDiff = storageRank(a) - storageRank(b);
+        if (storageDiff) return storageDiff;
+        const colorDiff = colorRank(a) - colorRank(b);
         if (colorDiff) return colorDiff;
       }
+      const priceDiff = priceRank(a) - priceRank(b);
+      if (priceDiff) return priceDiff;
     }
     if (
       a.group === "手表" &&
