@@ -25,6 +25,7 @@ const els = {
   minPrice: document.querySelector("#minPrice"),
   maxPrice: document.querySelector("#maxPrice"),
   updatedAt: document.querySelector("#updatedAt"),
+  taxNote: document.querySelector("#taxNote"),
 };
 
 function money(value) {
@@ -232,6 +233,12 @@ function renderSummary(items, updatedAt) {
   if (els.minPrice) els.minPrice.textContent = prices.length ? money(Math.min(...prices)) : "-";
   if (els.maxPrice) els.maxPrice.textContent = prices.length ? money(Math.max(...prices)) : "-";
   if (els.updatedAt) els.updatedAt.textContent = formatTime(updatedAt);
+  if (els.taxNote) {
+    els.taxNote.textContent =
+      state.selectedGroup === "电脑"
+        ? "价格未税，含税咨询业务（支持苹果定制机选配）"
+        : "价格未税，含税咨询业务";
+  }
 }
 
 function renderTable(items) {
