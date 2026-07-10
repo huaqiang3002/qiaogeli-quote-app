@@ -173,6 +173,14 @@ function priceRank(item) {
   return typeof item.price === "number" ? item.price : Number.POSITIVE_INFINITY;
 }
 
+function colorRank(item) {
+  const text = String(item.name || "");
+  const colorMatch = text.match(
+    /(白色|黑色|青雾蓝|鼠尾绿|薰衣紫|深空灰|星光|银色|蓝色|蓝|粉色|粉|紫色|紫|午夜|天蓝|原色|曜石黑|云锦白|寰宇红|赤兔红|雪域白|靛蓝色|柑橘黄|桃粉色)/
+  );
+  return colorMatch ? colorMatch[1] : "";
+}
+
 function ultra3Rank(item) {
   const code = String(item.name || "").match(/\(([A-Z0-9]+)\)\s*$/i)?.[1]?.toUpperCase();
   const index = ULTRA3_CODE_ORDER.indexOf(code);
@@ -196,6 +204,10 @@ function sortQuotes(items) {
     if (a.brand && b.brand && a.brand === b.brand) {
       const priceDiff = priceRank(a) - priceRank(b);
       if (priceDiff) return priceDiff;
+      if (a.group === "苹果手机") {
+        const colorDiff = colorRank(a).localeCompare(colorRank(b), "zh-CN");
+        if (colorDiff) return colorDiff;
+      }
     }
     if (
       a.group === "手表" &&

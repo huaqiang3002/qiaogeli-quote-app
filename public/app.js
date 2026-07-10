@@ -228,10 +228,10 @@ function applyFilters() {
 
 function renderSummary(items, updatedAt) {
   const prices = items.map((item) => item.price).filter((price) => typeof price === "number");
-  els.totalCount.textContent = String(items.length);
-  els.minPrice.textContent = prices.length ? money(Math.min(...prices)) : "-";
-  els.maxPrice.textContent = prices.length ? money(Math.max(...prices)) : "-";
-  els.updatedAt.textContent = formatTime(updatedAt);
+  if (els.totalCount) els.totalCount.textContent = String(items.length);
+  if (els.minPrice) els.minPrice.textContent = prices.length ? money(Math.min(...prices)) : "-";
+  if (els.maxPrice) els.maxPrice.textContent = prices.length ? money(Math.max(...prices)) : "-";
+  if (els.updatedAt) els.updatedAt.textContent = formatTime(updatedAt);
 }
 
 function renderTable(items) {
