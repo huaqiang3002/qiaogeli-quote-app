@@ -132,6 +132,7 @@ function markupForQuote(group, name) {
   if (normalizedGroup === "电脑") return 100;
   if (normalizedGroup === "配件" && /键盘|Keyboard/i.test(text)) return 100;
   if (normalizedGroup === "配件" && /蓝牙耳机|AirPods|耳机/i.test(text)) return 50;
+  if (normalizedGroup === "手表" && /25\s*款.*U(?:l|I)?tra3|U(?:l|I)?tra3.*25\s*款/i.test(text)) return 50;
   if (normalizedGroup === "配件" || normalizedGroup === "手表") return 30;
   return PRICE_MARKUP;
 }
