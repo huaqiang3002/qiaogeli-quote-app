@@ -243,7 +243,7 @@ function renderSummary(items, updatedAt) {
 
 function renderTable(items) {
   if (!items.length) {
-    els.quoteBody.innerHTML = '<tr><td colspan="4" class="empty">没有匹配的报价</td></tr>';
+    els.quoteBody.innerHTML = '<tr><td colspan="2" class="empty">没有匹配的报价</td></tr>';
     return;
   }
 
@@ -253,9 +253,8 @@ function renderTable(items) {
       const changed = typeof previous === "number" && previous !== item.price;
 
       return `<tr class="${changed ? "changed" : ""}">
-        <td class="group" data-label="分类">${escapeHtml(item.group)}</td>
-        <td data-label="商品">${escapeHtml(item.name)}</td>
-        <td class="price" data-label="报价">${escapeHtml(item.priceText)}</td>
+        <td class="model">${escapeHtml(item.name)}</td>
+        <td class="price">${escapeHtml(item.priceText)}</td>
       </tr>`;
     })
     .join("");
@@ -294,8 +293,8 @@ function resetTimer() {
 }
 
 function exportCsv() {
-  const header = ["分类", "商品", "报价"];
-  const rows = state.visibleItems.map((item) => [item.group, item.name, item.priceText]);
+  const header = ["型号", "价格"];
+  const rows = state.visibleItems.map((item) => [item.name, item.priceText]);
   const csv = [header, ...rows]
     .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
     .join("\n");

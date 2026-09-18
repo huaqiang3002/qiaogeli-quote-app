@@ -299,11 +299,6 @@ td {
   vertical-align: top;
 }
 
-td.group {
-  width: 210px;
-  color: var(--muted);
-}
-
 td.price {
   width: 130px;
   color: var(--accent);
@@ -430,7 +425,9 @@ tr.changed {
 
   tr {
     display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
     gap: 6px;
+    align-items: start;
     background: var(--panel);
     border: 1px solid var(--line);
     border-radius: 6px;
@@ -444,26 +441,17 @@ tr.changed {
   }
 
   td {
-    display: grid;
-    grid-template-columns: 52px minmax(0, 1fr);
-    gap: 8px;
-    align-items: start;
+    display: block;
     line-height: 1.35;
   }
 
-  td::before {
-    content: attr(data-label);
-    color: var(--muted);
-    font-size: 12px;
-  }
-
-  td.group,
   td.price {
     width: auto;
   }
 
   td.price {
     font-size: 18px;
+    text-align: right;
   }
 
   .empty {
