@@ -36,6 +36,11 @@ const CATEGORY_ORDER = [
 ];
 
 const APPLE_PHONE_BRAND_ORDER = [
+  "苹果18",
+  "苹果18Air",
+  "苹果18e",
+  "苹果18pro",
+  "苹果18promax",
   "苹果17",
   "苹果17Air",
   "苹果17e",
