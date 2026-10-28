@@ -36,6 +36,7 @@ const CATEGORY_ORDER = [
 ];
 
 const APPLE_PHONE_BRAND_ORDER = [
+  "iPhone DUO",
   "苹果18",
   "苹果18Air",
   "苹果18e",
@@ -113,6 +114,7 @@ function classifyQuoteGroup(group, name) {
 function classifyQuoteBrand(group, name, displayGroup) {
   const text = quoteText(group, name);
   if (displayGroup === "苹果手机") {
+    if (/iPhone\s*Duo/i.test(text)) return "iPhone DUO";
     const rank = applePhoneRank(text);
     const index = Math.floor(rank / 10);
     const suffix = rank % 10;
@@ -149,6 +151,7 @@ function categoryRank(group) {
 
 function applePhoneRank(text) {
   const value = String(text || "");
+  if (/iPhone\s*Duo/i.test(value)) return -1;
   const model = value.match(/(?:iPhone\s*)?(\d{2})(?:\s*(Pro\s*Max|promax|Air|e|Pro|Plus|MAX|Max))?/i);
   if (!model) return 9999;
 
